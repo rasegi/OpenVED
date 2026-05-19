@@ -119,7 +119,9 @@ See LICENSE and LICENSES/ for details.
 
 ## Acknowledgement
 
-This project is dedicated to the memory of [Jamshid Sharmahd](https://en.wikipedia.org/wiki/Jamshid_Sharmahd).
+This project is dedicated to the memory of
+[Jamshid Sharmahd](https://en.wikipedia.org/wiki/Jamshid_Sharmahd),
+a talented software engineer, independent thinker, and longtime friend.
 
 ---
 
