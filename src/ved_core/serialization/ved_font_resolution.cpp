@@ -31,6 +31,16 @@ void resolveTextFont(TDVecText& text, TDFontManager& fontManager, TDDocumentID d
         return;
     }
 
+    if (TDVecFont* segoeUI = fontManager.GetVecFontExact(kVEDSegoeUIFontId, docId)) {
+        applyResolvedFont(text, *segoeUI);
+        result.warnings.push_back({
+            VEDFontFallbackKind::RequestedMissingUsedSegoeUI,
+            requestedFontId,
+            segoeUI->GetFontName() ? segoeUI->GetFontName() : kVEDSegoeUIFontId
+        });
+        return;
+    }
+
     if (TDVecFont* wpsDefault = fontManager.GetVecFontExact(kVEDWpsDefaultFontId, nullptr)) {
         applyResolvedFont(text, *wpsDefault);
         result.warnings.push_back({

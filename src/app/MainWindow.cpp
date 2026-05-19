@@ -100,6 +100,9 @@ QString fontWarningText(const VEDFontResolutionResult& fontResolution) {
         case VEDFontFallbackKind::RequestedMissingUsedArialUnicodeMS:
             lines.push_back(QStringLiteral("Font '%1' was not found. The document was opened using '%2'.").arg(requested, resolved));
             break;
+        case VEDFontFallbackKind::RequestedMissingUsedSegoeUI:
+            lines.push_back(QStringLiteral("Font '%1' was not found. The document was opened using '%2'.").arg(requested, resolved));
+            break;
         case VEDFontFallbackKind::RequestedMissingUsedWpsDefault:
             lines.push_back(QStringLiteral("Font '%1' was not found. The document was opened using '%2'.").arg(requested, resolved));
             break;

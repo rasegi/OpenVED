@@ -477,6 +477,32 @@ int main()
     }
 
     {
+        TestFontProvider provider({kVEDSegoeUIFontId, kVEDWpsDefaultFontId});
+        TDFontManager fontManager;
+        fontManager.RegisterProvider(&provider);
+        assert(fontManager.SetDefaultFontId(kVEDWpsDefaultFontId));
+
+        TDVecModel model;
+        auto* text = new TDVecText();
+        text->SetFontName("TT:Missing Windows Font");
+        text->SetText("Segoe");
+        model.AppendObject(text);
+
+        const VEDModelWriteResult writeResult = SaveVecModelToBytes(model);
+        assert(writeResult.Ok());
+
+        const VEDModelReadResult readResult = LoadVecModelFromBytes(writeResult.bytes, fontManager);
+        assert(readResult.Ok());
+        assert(readResult.fontResolution.Ok());
+        assert(readResult.fontResolution.warnings.size() == 1U);
+        assert(readResult.fontResolution.warnings[0].kind == VEDFontFallbackKind::RequestedMissingUsedSegoeUI);
+        const auto* readText = dynamic_cast<const TDVecText*>(readResult.model->GetObject(0));
+        assert(readText);
+        assert(std::string(readText->GetFontName()) == kVEDSegoeUIFontId);
+        assert(readText->GetVecFontPointer());
+    }
+
+    {
         VEDBinaryWriter writer;
         writer.WriteFourCC(VEDMakeFourCC('B', 'A', 'D', '!'));
         writer.WriteUInt16(1U);

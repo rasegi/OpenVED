@@ -46,6 +46,21 @@ int main()
     assert(text.GetFrame().P3.x > text.GetFrame().P1.x);
     assert(text.GetFrame().P3.y > text.GetFrame().P1.y);
 
+    {
+        TDVecText unicodeText;
+        unicodeText.SetVecFontPointer(font.get());
+        unicodeText.SetFontName(font->GetFontName());
+        unicodeText.SetOriginPoint({0.0, 0.0});
+        const char* persianText = "\xD8\xB3" "\xD9\x84" "\xD8\xA7" "\xD9\x85";
+        unicodeText.SetText(persianText);
+        unicodeText.Initialize();
+
+        assert(std::string(unicodeText.GetText()) == persianText);
+        assert(unicodeText.CountGlyphs() == 4);
+        assert(unicodeText.GetFrame().P3.x > unicodeText.GetFrame().P1.x);
+        assert(unicodeText.GetFrame().P3.y > unicodeText.GetFrame().P1.y);
+    }
+
     const TDMatPoint before = text.GetOriginPoint();
     assert(text.MoveBy(5.0, -3.0));
     assert(text.GetOriginPoint().x == before.x + 5.0);

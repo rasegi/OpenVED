@@ -256,6 +256,55 @@ bool frameContainsPoint(const TDMatRect& rect, TDMatPoint point, double toleranc
     return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
 }
 
+void appendMarkerLine(TDVecGlyph& glyph, TDMatConturPoint from, TDMatConturPoint to)
+{
+    auto* curve = new TDVecPolyCurve();
+    curve->SetResolution(MID_TEXT_RESOLUTION);
+    curve->SetShowControls(false);
+    curve->SetShowPolygon(false);
+    from.eType = CPT_PRIME_LINE;
+    from.bJoint = true;
+    to.eType = CPT_PRIME_LINE;
+    to.bJoint = true;
+    curve->AppendPoint(from);
+    curve->AppendPoint(to);
+    glyph.AppendPolyCurve(curve);
+}
+
+std::unique_ptr<TDVecGlyph> makeMissingGlyphMarker(const TDVecFont& font)
+{
+    for (const unsigned short marker : {'?', '!', 'X'}) {
+        if (const TDVecGlyph* glyph = font.GetGlyphFromCharacter(marker)) {
+            return std::unique_ptr<TDVecGlyph>(glyph->Clone());
+        }
+    }
+
+    const double height = font.GetHeight() > 0.0 ? font.GetHeight() : 1000.0;
+    const double width = font.GetSpacingGlyphWidth() > 0.0 ? font.GetSpacingGlyphWidth() : height * 0.6;
+    const double inset = std::min(width, height) * 0.12;
+    const double left = inset;
+    const double right = width - inset;
+    const double top = inset;
+    const double bottom = height - inset;
+
+    auto glyph = std::make_unique<TDVecGlyph>();
+    glyph->SetCharWidth(width);
+    appendMarkerLine(*glyph, {left, top}, {right, bottom});
+    appendMarkerLine(*glyph, {right, top}, {left, bottom});
+    glyph->SetBaseLine(font.GetAscent());
+    return glyph;
+}
+
+std::unique_ptr<TDVecGlyph> cloneGlyphOrMissingMarker(const TDVecFont& font, unsigned int codePoint)
+{
+    if (codePoint <= 0xFFFFU) {
+        if (const TDVecGlyph* glyph = font.GetGlyphFromCharacter(static_cast<unsigned short>(codePoint))) {
+            return std::unique_ptr<TDVecGlyph>(glyph->Clone());
+        }
+    }
+    return makeMissingGlyphMarker(font);
+}
+
 unsigned int decodeNextUtf8OrLatin1(const char*& text)
 {
     // New text is UTF-8, while old VED documents may still contain single-byte
@@ -562,12 +611,11 @@ void TDVecText::InitializeGlyphs()
                 charsX = 0.0;
                 continue;
             }
-            if (!shapedGlyph.glyph) {
-                charsX += shapedGlyph.xAdvance + mnCharSpacing;
-                charsY += shapedGlyph.yAdvance;
-                continue;
+            std::unique_ptr<TDVecGlyph> glyphOwner = std::move(shapedGlyph.glyph);
+            if (!glyphOwner) {
+                glyphOwner = makeMissingGlyphMarker(*mpVecFont);
             }
-            TDVecGlyph* glyph = shapedGlyph.glyph.release();
+            TDVecGlyph* glyph = glyphOwner.release();
             glyph->MoveGlyph(mOriginPoint.x + charsX + shapedGlyph.xOffset, mOriginPoint.y + charsY + shapedGlyph.yOffset);
             glyph->ToShearX(mnIncline, 1);
             glyph->ToScale(mOriginPoint, mnXScale, mnYScale);
@@ -589,11 +637,11 @@ void TDVecText::InitializeGlyphs()
             charsX = 0.0;
             continue;
         }
-        const TDVecGlyph* original = codePoint <= 0xFFFFU ? mpVecFont->GetGlyphFromCharacter(static_cast<unsigned short>(codePoint)) : nullptr;
-        if (!original) {
+        std::unique_ptr<TDVecGlyph> glyphOwner = cloneGlyphOrMissingMarker(*mpVecFont, codePoint);
+        if (!glyphOwner) {
             continue;
         }
-        TDVecGlyph* glyph = original->Clone();
+        TDVecGlyph* glyph = glyphOwner.release();
         const double xGlyph = mOriginPoint.x + charsX;
         const double yGlyph = mOriginPoint.y + charsY;
         charsX += (glyph->IsSpacing() ? mpVecFont->GetSpacingGlyphWidth() : glyph->GetCharWidth()) + mnCharSpacing;

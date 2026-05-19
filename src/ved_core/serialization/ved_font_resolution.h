@@ -8,11 +8,13 @@
 class TDVecModel;
 
 inline constexpr const char* kVEDArialUnicodeMSFontId = "TT:Arial Unicode MS";
+inline constexpr const char* kVEDSegoeUIFontId = "TT:Segoe UI";
 inline constexpr const char* kVEDWpsDefaultFontId = "VC:WPS Default";
 
 enum class VEDFontFallbackKind {
     None,
     RequestedMissingUsedArialUnicodeMS,
+    RequestedMissingUsedSegoeUI,
     RequestedMissingUsedWpsDefault,
     NoFallbackAvailable
 };
@@ -31,4 +33,3 @@ struct VEDFontResolutionResult {
 };
 
 VEDFontResolutionResult ResolveVecModelFonts(TDVecModel& model, TDFontManager& fontManager, TDDocumentID docId = nullptr);
-
