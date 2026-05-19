@@ -1,0 +1,128 @@
+Port Step 017 - Grid/Zoom/Pan sichtbar an QVedWidget anbinden
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach `port_step_016.log` war die Engine technisch in der Lage, Grid und
+Screen-Hilfsfunktionen zu zeichnen. In der Anwendung war davon aber nichts
+sichtbar, weil:
+
+```text
+- QVedWidget::paintEvent() DrawGrid() nicht aufgerufen hat
+- Toolbar-Actions nur "not implemented yet" meldeten
+- es keinen Grid-State im Widget gab
+- Wheel-Zoom und Pan noch nicht an TDGraphicEngineQt gekoppelt waren
+```
+
+Geaenderte Dateien
+------------------
+```text
+src/app/QVedWidget.h
+src/app/QVedWidget.cpp
+src/app/MainWindow.h
+src/app/MainWindow.cpp
+scrapbook/port_step_017.log
+```
+
+QVedWidget
+----------
+Neue View-Zustaende:
+
+```text
+showGrid_
+gridLock_
+zoomToolEnabled_
+viewInitialized_
+panning_
+```
+
+Neue oeffentliche Methoden:
+
+```cpp
+void setShowGrid(bool showGrid);
+bool showGrid() const;
+void setGridLock(bool gridLock);
+bool gridLock() const;
+void setZoomToolEnabled(bool enabled);
+bool zoomToolEnabled() const;
+void resetView();
+```
+
+Grid
+----
+`paintEvent()` initialisiert jetzt eine A4-nahe Arbeitsflaeche in alten
+Screen-/Grid-Einheiten und ruft bei aktivem `showGrid_`:
+
+```cpp
+graphicEngine_.DrawGrid(
+    210000,
+    296985,
+    10000,
+    10,
+    0x00C8C8C8,
+    4);
+```
+
+Damit wird das Grid durch die portierte `TDGraphicEngineQt` gezeichnet und
+nicht im Widget separat nachgebaut.
+
+Zoom und Pan
+------------
+Wheel-Zoom:
+
+```text
+Mausrad hoch   -> Zoom * 1.15
+Mausrad runter -> Zoom / 1.15
+```
+
+Pan:
+
+```text
+mittlere Maustaste ziehen
+rechte Maustaste ziehen
+```
+
+Beides geht ueber `TDGraphicEngineQt` und damit ueber die portierte Screen-
+State-Semantik.
+
+Toolbar-Anbindung
+-----------------
+Folgende vorhandene Toolbar-Actions sind jetzt verbunden:
+
+```text
+VOP_ZOOM_IO  -> QVedWidget::setZoomToolEnabled
+cmdShowGrid  -> QVedWidget::setShowGrid
+cmdLockGrid  -> QVedWidget::setGridLock
+```
+
+Die implementierten Actions melden nicht mehr "not implemented yet".
+
+Grenze
+------
+`cmdLockGrid` setzt aktuell den Grid-Lock-State und wird ueber
+`TDVecViewInterfaceTemplate<QVedWidget>::GetGridLock()` zurueckgegeben. Das
+eigentliche Snapping der Create-/Modify-Operationen kommt erst, wenn diese
+Operationen an `TDVecEditCad` und das ViewInterface angeschlossen sind.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die sichtbare View-Bedienung weiter an alte VED-Semantik angleichen:
+
+1. Scrollbar-Semantik aus `vcl_vec_view.cpp` analysieren.
+2. Qt-Scrollbars oder Scrollbar-aehnliche Pan-Kommunikation an
+   `TDGraphicEngineQt::SetPanX/Y` anbinden.
+3. Zoom-Werkzeug-Verhalten aus `VOP_ZOOM_INOUT` statt nur Wheel-Zoom
+   anschliessen.
+4. Grid-Lock-Snapping erst mit den Create-/Modify-Operationen aktivieren.

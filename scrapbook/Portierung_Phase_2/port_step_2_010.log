@@ -1,0 +1,57 @@
+Step 2.010 - VOM_SELECTMOVE_OBJECT_SCALE_FRAME portiert
+Datum: 2026-05-14
+
+Ziel:
+- Alte VED Operation VOM_SELECTMOVE_OBJ_SCALE_FRAME in den Qt/ved_core-Port holen.
+- Keine Aenderung an Mathlib oder Ellipse-Draw-Kern in diesem Step.
+- Verhalten eng am Original halten: Select, Shift-Select, Lasso, Move, Group-Move und Frame-Node-Scale.
+
+Portierte Operation:
+- Neue Dateien:
+  - src/ved_core/operations/vom_selectmove_object_scale_frame.h
+  - src/ved_core/operations/vom_selectmove_object_scale_frame.cpp
+- TDVOMSelectMoveObjectScaleFrame erzeugt wie im Original:
+  - VisualNodes=false
+  - VisualFrame=true
+  - Cursor VECVIEW_CURSOR_DEFAULT
+  - externe Variablen fuer Frame/Hoehe/Breite/ObjectCount
+- Operation registriert in:
+  - CMakeLists.txt
+  - src/ved_core/operations/vop_manager.cpp
+  - src/app/MainWindow.cpp Toolbar Button "Select/Scale"
+
+Notwendige objektseitige VED-API:
+- TDVecObject:
+  - PointOnFrameNode(...)
+  - MoveFrameNode(...)
+  - ToScale(...)
+- TDVecLine:
+  - ToScale(...) nach alter Bezugspunkt-/xScale-/yScale-Logik.
+- TDVecEllipse:
+  - ToScale(...) nach alter Affinitaetsformel aus Borland vec_data.cpp.
+  - Diese Formel liegt bewusst objektseitig, nicht in vec_math_base.
+- TDVecEditCad:
+  - FindObjectFrame(...) fuer den originalen Select/Scale-HitTest-Pfad.
+
+Wichtige Korrektur gegenueber naivem Port:
+- Bei Mehrfachselektion darf der spaetere Single-Object-Pfad nicht das erste selektierte Objekt nehmen.
+- Im alten VED ist PointerOfSelectedObject() in diesem Kontext nicht gleichbedeutend mit "erstes selektiertes Objekt".
+- Deshalb wird im neuen Port bei mbGroupMove der Single-Move/Single-Scale-Pfad uebersprungen.
+
+Tests:
+- Neuer Test:
+  - tests/ved_core_select_scale_frame_operation_tests.cpp
+- Abgedeckt:
+  - Operation aktiviert sich als VOM_SELECTMOVE_OBJ_SCALE_FRAME.
+  - Operation schaltet auf Frame-Visualisierung.
+  - Frame-Node-Scale skaliert eine Linie erst bei MouseUp.
+  - Mehrfachselektion bewegt alle selektierten Objekte gemeinsam.
+  - Ellipse-ToScale bleibt gueltig und aktualisiert bei affiner Skalierung Radius/Winkel.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Grenzen:
+- Frame-Scale ist fuer aktuell portierte Objektklassen TDVecLine und TDVecEllipse implementiert.
+- Weitere Objektklassen muessen ihre eigene ToScale-Logik beim Portieren aus Borland mitbringen.

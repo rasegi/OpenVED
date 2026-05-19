@@ -1,0 +1,170 @@
+Port Step 3.003 - Core-Textobjekte auf VFN-Fontbasis
+Datum: 2026-05-16
+
+Ziel
+====
+
+- Erste Core-Portierung der Textobjekte umsetzen.
+- Text weiter als VED-Vektorgeometrie behandeln, nicht als Qt-Text.
+- Auf dem in Step 3.002 geladenen `wps_default.vfn` und den alten VED-Glyphen aufbauen.
+- Noch keine UI-/Toolbar-/Operation-Anbindung.
+
+Umsetzung
+=========
+
+Neu:
+
+- `src/ved_core/vecobjects/vec_text.h`
+- `src/ved_core/vecobjects/vec_text.cpp`
+- `tests/ved_core_text_tests.cpp`
+
+Geaendert:
+
+- `CMakeLists.txt`
+- `src/ved_core/fontengine/vec_font.h`
+- `src/ved_core/fontengine/vec_font.cpp`
+
+Portierte Klassen
+=================
+
+Neu im Core:
+
+- `TDVecText`
+- `TDVecFrameText`
+
+`TDVecText` enthaelt jetzt die alten fachlichen Parameter:
+
+- Textinhalt
+- Ursprungspunkt
+- X-/Y-Skalierung
+- Winkel
+- Incline/Schraegstellung
+- Zeilenabstand
+- Zeichenabstand
+- Vertikal-Flag
+- Underline-Flag
+- horizontale Justification
+- vertikale Alignment-Einstellung
+- Resolution
+- Fontname
+- Vektorfont-Pointer
+
+`TDVecFrameText` erweitert das um:
+
+- Rahmen-Rechteck
+- Scale-Dependency
+- Frame-basierte Ausrichtung des Textursprungs
+
+Stream/Factory
+==============
+
+Ergaenzt:
+
+- `RegisterVecTextStreamTypes()`
+- `SetDefaultVecTextFont(...)`
+- `GetDefaultVecTextFont()`
+
+Registrierte Stream-Typen:
+
+- `vtxt` -> `TDVecText`
+- `ftxt` -> `TDVecFrameText`
+
+Der Default-Font-Pointer ist noetig, weil die alte Borland-Version beim Lesen von Textobjekten
+ueber `TDFontManager::Exemplar()` den Fontnamen aufloest. Einen Borland-Fontmanager nehmen wir
+in Phase 3 bewusst nicht mit. Fuer diesen Schritt liefert der Test den zuvor geladenen
+`wps_default.vfn` als Default-Font.
+
+Fontengine-Ergaenzung
+=====================
+
+Ergaenzt in `TDVecGlyph`:
+
+- `ToShearX(...)`
+
+Grund:
+
+- `TDVecText::InitializeGlyphs()` nutzt wie Borland Incline/Schraegstellung ueber Glyph-Shear.
+- Dafuer braucht der Glyph Zugriff auf die PolyCurve-Konturpunkte.
+
+Textverhalten im ersten Schnitt
+===============================
+
+Umgesetzt:
+
+- Text erzeugt Glyph-Kopien aus `TDVecFont`.
+- Glyphen werden ueber Zeichenbreite/Spacing gesetzt.
+- Zeilenumbruch `\n` wird beruecksichtigt.
+- X/Y-Skalierung, Rotation und Incline werden auf Glyphen angewendet.
+- `Draw(...)` zeichnet die Glyphen als VED-PolyCurves.
+- `GetFrame()` liefert den Rahmen der erzeugten Glyph-Geometrie.
+- `MoveBy`, `Rotate`, `ToScale`, `TransformToPoint`, `TransformToOrigin` aktualisieren Text
+  und Glyphen.
+- Locks werden respektiert:
+  - `LockPosition` blockiert Move/Rotate.
+  - `LockResize` blockiert Scale.
+- Text- und FrameText-Objekte koennen ueber SCLIB-Stream geschrieben und gelesen werden.
+
+Bewusst begrenzt:
+
+- `MoveNode(...)` ist im ersten Schnitt noch nicht fachlich vollstaendig wie Borland.
+- Underline und Vertical-Text sind als Parameter vorhanden, aber noch nicht vollstaendig
+  gezeichnet.
+- Die alte Borland-FrameText-Ausrichtung ist nur soweit portiert, wie fuer die erste
+  Core-Erzeugung und Streamtests noetig ist.
+
+Tests
+=====
+
+Neu:
+
+- `ved_core_text_tests`
+
+Der Test prueft:
+
+- `wps_default.vfn` wird geladen.
+- Der geladene Font wird als Default-Textfont gesetzt.
+- `TDVecText` kann mit Text `AB` Glyphen erzeugen.
+- `TDVecText::GetFrame()` liefert eine plausible Ausdehnung.
+- `MoveBy` funktioniert und respektiert `LockPosition`.
+- `TDVecText` kann ueber `WriteObject`/`ReadObject` serialisiert und gelesen werden.
+- `TDVecFrameText` kann mit Rahmen und Text erzeugt werden.
+- FrameText liefert den erwarteten Typ und Rahmen.
+- `TDVecFrameText` kann ueber `WriteObject`/`ReadObject` serialisiert und gelesen werden.
+
+Verifikation
+============
+
+Ausgefuehrt:
+
+- `cmake --build cmake-build-debug --target ved_core_text_tests`
+- `ctest --test-dir cmake-build-debug -R ved_core_text_tests --output-on-failure`
+- `cmake --build cmake-build-debug --target ved_qt_app`
+- `ctest --test-dir cmake-build-debug --output-on-failure`
+
+Ergebnis:
+
+- `ved_core_text_tests` baut und besteht.
+- `ved_qt_app` baut.
+- Gesamttests: 20/20 bestanden.
+
+Nicht gemacht
+=============
+
+- Keine Text-Toolbar angebunden.
+- Keine Text-Erzeugungsoperation (`VOC_VECTEXT`) angebunden.
+- Keine FrameText-Erzeugungsoperation (`VOC_VECFRAMETEXT_EMPTY`) angebunden.
+- Keine Text-Modifikationsoperation (`VOM_VECTEXT`) angebunden.
+- Kein Fontmanager und keine Systemfont-Auswahl.
+- Kein TrueType.
+- Kein Plugin.
+
+Naechster Schritt
+=================
+
+Step 3.004 sollte die Bedienung anbinden:
+
+- `VOC_VECTEXT`
+- `VOC_VECFRAMETEXT_EMPTY`
+- `VOM_VECTEXT`
+- Command-/Toolbar-Anbindung
+- minimaler Parameterfluss mit `wps_default.vfn`

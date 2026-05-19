@@ -1,0 +1,198 @@
+Portierung Phase 3 - Step 004
+Datum: 2026-05-16
+
+Ziel:
+- Ersten sichtbaren Textpfad in der Qt-App aktivieren.
+- Alte Text-Operationen pragmatisch ueber eine leichte Qt-Dialog/Dock-Bridge testbar machen.
+- Font-Auswahl fuer diesen Schritt fest auf die vorhandene VED-Vektorfont-Datei `wps_default.vfn` setzen.
+
+Technische Umsetzung:
+- `MainWindow` laedt `:/ved/font/wps_default.vfn` ueber `LoadVecFontFromMemory`.
+- Der geladene Font wird als Default fuer `TDVecText` registriert.
+- Toolbar-Actions fuer `cmdVOCVecText` und `cmdVOCVecFrameTextEmpty` sind jetzt aktiv.
+- Linksklick in die Zeichenflaeche erzeugt echte Core-Objekte:
+  - `TDVecText`
+  - `TDVecFrameText`
+- Neue Objekte werden ins `TDVecModel` eingefuegt, sichtbar neu gezeichnet und direkt selektiert.
+- Toolbar-Action `cmdVOMVecText` ist aktiv, wenn genau ein Text- oder FrameText-Objekt selektiert ist.
+- Ein Text-Dock ersetzt fuer diesen Schritt die alte Dialogbox ausreichend fuer Tests.
+
+Text-Dock:
+- Mehrzeiliges Texteingabefeld.
+- Font-ComboBox ist vorhanden, aber deaktiviert.
+- Der einzige Font ist der geladene VED-Default-Font aus `wps_default.vfn`.
+- Testbare Attribute:
+  - X-Scale
+  - Y-Scale
+  - Winkel
+  - Neigung
+  - Zeilenabstand
+  - Zeichenabstand
+  - Aufloesung
+  - horizontale Ausrichtung
+  - vertikale Ausrichtung
+  - Vertical-Flag
+  - Underline-Flag
+  - Scale-with-frame fuer FrameText
+
+Abgrenzung:
+- Das ist noch keine vollstaendige 1:1-Portierung der alten Borland VOC/VOM-Textoperationen.
+- Step 004 schafft bewusst zuerst die sichtbare und testbare Text-Erzeugung mit dem vorhandenen Core-Textobjekt und dem VFN-Font.
+- Weitere Detailparitaet der alten Textoperationen kann danach gezielt folgen.
+
+Geaenderte Dateien:
+- `src/app/MainWindow.h`
+- `src/app/MainWindow.cpp`
+
+Verifikation:
+- `cmake --build cmake-build-debug --target ved_qt_app`
+  - erfolgreich
+- `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag:
+- Text-Erzeugung nutzt jetzt einen eigenen Qt-Interaktionsmodus `CreateText`.
+- `QVedWidget` leitet Mausbewegung und Linksklick in diesem Modus an die Text-Erzeugung weiter.
+- Die vorhandenen Cursor-Ressourcen `create_vectext_1.png` und `create_vectext_2.png` werden verwendet.
+- Der Text haengt jetzt als Vorschau am Mauszeiger und wird mit Linksklick an der aktuellen Dokumentkoordinate platziert.
+- Build und Tests nach dieser Korrektur erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag 2:
+- `TDVecText` erkennt jetzt seinen sichtbaren Ursprungsknoten ueber `PointOnNode`.
+- Der Ursprungsknoten ist Node `0`, passend zu `DrawNodes`.
+- `MoveNode(0, ...)` verschiebt jetzt den Text-Ursprung und damit den Text.
+- Damit koennen `VOM_SELECT_MOVE_NODE_OBJECT` und `VOM_MOVE_NODE` Textknoten greifen und bewegen.
+- `ved_core_text_tests` prueft jetzt Text-Node-Hit und Text-Node-Move.
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_text_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Korrektur zu Nachtrag 2:
+- Die alte Borland-Implementierung verwendet bei `TDVecText::PointOnNode` nicht den Ursprungspunkt als editierbaren Node.
+- Borland erkennt die 8 Frame-Nodes `0..7` des Text-Frames und `MoveNode` skaliert den Text ueber diese Nodes.
+- Die Qt-Portierung wurde entsprechend korrigiert:
+  - `TDVecText::PointOnNode` erkennt jetzt die Frame-Nodes.
+  - `TDVecText::MoveNode` nutzt die Frame-Node-Skalierung.
+  - `TDVecFrameText` erkennt und bewegt seine Nodes anhand von `mRectangle`, nicht anhand des kombinierten Text-Frames.
+- `ved_core_text_tests` prueft jetzt Frame-Node-Hit und Frame-Node-Skalierung.
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_text_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag 3:
+- `cmdVOCVecFrameTextEmpty` wurde an den alten Borland-Ablauf angepasst.
+- Die Operation oeffnet jetzt keinen Text-Dialog mehr.
+- Stattdessen wird zuerst eine leere orthogonale FrameText-Box gezeichnet.
+- Dabei werden wie in Borland die Rectangle-Cursor `VECVIEW_CREATE_RECTANGLE_NOTROTATED_1` und `_2` verwendet.
+- Nach dem Zeichnen entsteht ein leeres `TDVecFrameText`.
+- Der Textinhalt wird danach separat ueber `cmdVOMVecText` / Text Properties bearbeitet.
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag 4:
+- Die Qt-UI uebergibt Text jetzt als Latin-1-Bytes an `TDVecText`, nicht mehr als UTF-8.
+- Grund: die aktuelle Core-Textengine verarbeitet `char` byteweise und sucht damit direkt Glyph-Codes in der VFN-Datei.
+- UTF-8 zerlegt Umlaute wie `oe/ae/ue/ss` in mehrere Bytes und passt damit nicht zum alten VFN-Zeichensatz.
+- `wps_default.vfn` enthaelt Glyphen fuer die Latin-1-Codes:
+  - `0xE4` ae
+  - `0xF6` oe
+  - `0xFC` ue
+  - `0xDF` ss
+- `ved_core_vec_font_tests` prueft diese Glyphen jetzt explizit.
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_vec_font_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag 5:
+- Rechtsklick beendet jetzt Dialog-/Dock-Operationen zentral vor der Weitergabe an die aktive Operation.
+- Betroffen:
+  - Curve-Attribute-Dock
+  - RoundRectangle-Dock
+  - Rotate-Dock
+  - Text-Dock
+  - FrameText-Box-Erzeugung
+- FrameText-Box-Preview wird beim Abbruch sauber entfernt.
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Korrektur zu Nachtrag 5:
+- `VOC_POLYCURVE` und `VOC_BSPLINE_CONTROLPOINT` werden nicht mehr vom zentralen Rechtsklick-Cancel abgefangen.
+- Rechtsklick wird dort wieder an die Core-Operation weitergereicht, weil diese Operationen Rechtsklick als Accept/Finish verwenden.
+- Der zentrale Cancel bleibt fuer echte Dialog-/Dock-Abbrueche aktiv:
+  - Curve-Attribute-Dock
+  - RoundRectangle-Dock
+  - Rotate-Dock
+  - Text-Dock
+  - FrameText-Box-Erzeugung
+- Build und Tests erneut erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Korrektur zu Text-VOC:
+- `cmdVOCVecText` und `cmdVOCVecFrameTextEmpty` sind jetzt nicht mehr als eigener MainWindow-Mauspfad nachgebaut.
+- Die Borland-Operationen wurden in den Core portiert:
+  - `TDVOCVecText`
+  - `TDVOCVecTextExtVar`
+  - `TDVOCVecFrameTextEmpty`
+  - `TDVOCVecFrameTextEmptyExtVar`
+- `TDViewOperationManager` erzeugt diese Operationen jetzt ueber:
+  - `VOC_VECTEXT`
+  - `VOC_VECFRAMETEXT_EMPTY`
+- `cmdVOCVecText`:
+  - Dialog/Dock schreibt Parameter und Latin-1-Text in `TDVOCVecTextExtVar`.
+  - Texteingabe aktualisiert die ExtVar direkt; Attribute gehen ueber den gruenen Haken.
+  - Der gruene Haken ruft `SendUpdateToParrentOP()` auf.
+  - Preview und Platzierung laufen ueber `TDVOCVecText::OPMouseMove/OPMouseUp`.
+  - Linksklick erzeugt den Text an der Mausposition.
+  - Rechtsklick wird wie in Borland an die Operation durchgereicht und loescht den aktuellen ExtVar-Text.
+- `cmdVOCVecFrameTextEmpty`:
+  - Startet `TDVOCVecFrameTextEmpty`.
+  - Box-Preview und Erzeugung laufen ueber die Core-Operation.
+  - Rechtsklick wird wie in Borland an die Operation durchgereicht.
+- Die direkten MainWindow-Erzeugungspfade werden in den Maus-Callbacks nicht mehr verwendet.
+- Der alte MainWindow-Preview-/Create-Code fuer Text und FrameText wurde entfernt, damit es nur noch den Core-VOC-Pfad gibt.
+- Tests erweitert:
+  - `ved_core_text_tests` prueft `VOC_VECTEXT` ueber ExtVar und Linksklick.
+  - `ved_core_text_tests` prueft `VOC_VECFRAMETEXT_EMPTY` ueber Maus-Box-Erzeugung.
+- Build und Tests erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_text_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Crash-Fix EmptyFrameText:
+- `TDVOCVecFrameTextEmpty::OPMouseMove()` hat die Preview-PolygonArea lokal erzeugt und den Raw-Pointer an `TDVecEditCad::TmpAppend()` uebergeben.
+- Nach Rueckkehr aus `OPMouseMove()` war dieses Preview-Objekt geloescht, `TDVecEditCad` hielt aber noch den Pointer fuer den naechsten Paint.
+- Das konnte beim ersten Klick/Drag nach Aktivierung von `cmdVOCVecFrameTextEmpty` crashen.
+- Die Preview lebt jetzt als Member `mpTmpObject` der Operation, wie bei den anderen Rectangle-VOCs.
+- Build und Tests erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_text_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich
+
+Nachtrag VOM_VECTEXT:
+- `TDVOMVecText` und `TDVOMVecTextExtVar` wurden aus der Borland-Welt in den Core portiert.
+- `TDViewOperationManager` erzeugt `TDVOMVecText` jetzt fuer `VOM_VECTEXT`.
+- `cmdVOMVecText` / Text Properties nutzt nicht mehr den direkten MainWindow-Objektpfad.
+- Das Text-Dock:
+  - startet `VOM_VECTEXT`,
+  - liest Parameter und Text aus `TDVOMVecTextExtVar`,
+  - schreibt Aenderungen in die ExtVar,
+  - ruft `SendUpdateToParrentOP()` auf.
+- `TDVOMVecText` wendet die Aenderungen in `ExtVarIsChanged()` auf die selektierten Textobjekte an.
+- Toolbar, Statuszeile und Active-Operation-Anzeige zeigen fuer Text Properties jetzt `VOM_VECTEXT`.
+- `ved_core_text_tests` prueft die VOM-Textaenderung ueber OperationManager und ExtVar.
+- Build und Tests erfolgreich:
+  - `cmake --build cmake-build-debug --target ved_qt_app ved_core_text_tests`
+  - `ctest --test-dir cmake-build-debug --output-on-failure`
+  - 20/20 Tests erfolgreich

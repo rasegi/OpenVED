@@ -1,0 +1,66 @@
+Port Step 2.014 - VOM_CHANGE_EDGE_ROUND_NODE portiert
+Datum: 2026-05-15
+
+Ziel
+- VOM_CHANGE_EDGE_ROUND_NODE aus Borland-VED als eigene vom_-Operation portieren.
+- Icon gegen vedtest vergleichen und falsche Zuordnung korrigieren.
+- Keine Aenderung an mathematischer Basis.
+
+Borland-Vergleich
+- Quelle:
+  - borland_ved/src/comp/operations/vom_change_edge_round_node.h/.cpp
+  - borland_ved/src/comp/vecobjects/vec_data_polycurve.cpp
+  - borland_ved/src/vedtest/main.dfm
+- Operation ist nur fuer VECOBJ_POLYCURVE und VECOBJ_POLYCURVEAREA gueltig.
+- Linksklick auf einen Node toggelt dessen ConturPoint-Type:
+  - CPT_PRIME_LINE -> CPT_PRIME_QSPLINE
+  - CPT_PRIME_QSPLINE -> CPT_PRIME_LINE
+- Nicht erlaubt:
+  - erster Punkt
+  - letzter Punkt
+  - ein Linienpunkt, dessen vorheriger oder naechster Punkt bereits CPT_PRIME_QSPLINE ist.
+- Rechts/andere Taste bricht ab.
+
+Icon
+- In Qt war der Button faelschlich mit circle_radius.bmp verbunden.
+- Vergleich mit vedtest/main.dfm:
+  - cmdVOMChangeEdgeRoundNode enthaelt ein eingebettetes 17x17 BMP.
+  - MD5 dieses Glyphs: 4aba10f3cce15721c7389210f35b0aa2.
+  - Das entspricht exakt src/app/resources/toolbar/change_node.bmp.
+- MainWindow verwendet jetzt change_node.bmp fuer VOM_CHANGE_EDGE_ROUND_NODE.
+
+Umsetzung
+- Neue Operation:
+  - src/ved_core/operations/vom_change_edge_round_node.h
+  - src/ved_core/operations/vom_change_edge_round_node.cpp
+- TDViewOperationManager:
+  - VOM_CHANGE_EDGE_ROUND_NODE erzeugt TDVOMChangeEdgeRoundNode.
+  - GetAktiveOperationType erkennt die Operation.
+- TDVecPolyCurve und TDVecPolyCurveArea:
+  - ChangePointType(int iPoint) ergaenzt.
+  - Regeln wie im alten VED umgesetzt.
+- MainWindow:
+  - Button auf change_node.bmp korrigiert.
+  - Button ist implementiert und wird nur aktiviert, wenn genau ein VECOBJ_POLYCURVE oder VECOBJ_POLYCURVEAREA selektiert ist.
+- QVedWidget:
+  - InteractionMode::ModifyObject ergaenzt, damit Modify-Operationen Mausereignisse bekommen, ohne Select-Cursor zu erzwingen.
+- CMake:
+  - Neue Operation-Dateien eingebunden.
+  - Neuer Test eingebunden.
+
+Tests
+- Neuer Test tests/ved_core_change_edge_round_node_operation_tests.cpp:
+  - TDVecPolyCurve: mittlerer Line-Point wird QSPLINE.
+  - TDVecPolyCurve: QSPLINE wird wieder Line.
+  - Nachbar-QSPLINE-Regel verhindert ungueltiges Umschalten.
+  - TDVecPolyCurveArea: mittlerer Line-Point wird QSPLINE.
+  - Nicht passender selektierter Typ aktiviert die Operation im NEEDSELECTED-Fall.
+
+Verifikation
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 11/11 Tests bestanden.
+
+Hinweise
+- vec_math_base wurde nicht geaendert.
+- Die Operation ist als eigene vom_-Klasse portiert, nicht in MainWindow oder Model-Logik hineinverlegt.

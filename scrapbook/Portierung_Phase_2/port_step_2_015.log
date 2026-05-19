@@ -1,0 +1,61 @@
+Port Step 2.015 - VOC_POLYCURVE ToolWindow/Parameterdialog
+Datum: 2026-05-15
+
+Ziel
+- Den alten vedtest-Dialog fuer VOC_POLYCURVE in Qt nachbauen.
+- Werte muessen ueber TDVOCPolyCurveExtVar an die aktive Operation gehen.
+- Werte muessen beim erzeugten TDVecPolyCurve-Objekt gespeichert werden.
+
+Borland-Vergleich
+- Quelle:
+  - borland_ved/src/vedtest/main.dfm
+  - borland_ved/src/vedtest/main.cpp
+  - borland_ved/src/comp/operations/voc_polycurve.h/.cpp
+- Altes ToolWindow:
+  - Caption bei VOC_POLYCURVE: "PolyCurve zeichnen".
+  - Checkbox: "show polygon".
+  - Checkbox: "show controls".
+  - Eingabefeld: "resolution:".
+  - Apply-Button mit apply.bmp.
+  - Cancel-Button mit delete.bmp.
+- DFM-Glyph-Vergleich:
+  - cmdCurveApply entspricht src/app/resources/toolbar/apply.bmp.
+  - cmdCurveCancel entspricht src/app/resources/toolbar/delete.bmp.
+- Altes Apply:
+  - holt mpVecController->GetActiveVOPExtVariables().
+  - castet auf TDVOCPolyCurveExtVar.
+  - setzt Resolution, ShowControls, ShowPolygon.
+  - ruft SendUpdateToParrentOP().
+- Altes Cancel:
+  - CancelOperation().
+  - tlwCurve->Visible = false.
+
+Umsetzung Qt
+- MainWindow erhaelt ein QDockWidget "PolyCurve zeichnen".
+- Dock wird bei Aktivierung von VOC_POLYCURVE angezeigt.
+- Dock-Inhalt:
+  - Toolbar-Buttons Apply/Cancel mit denselben alten Icons apply.bmp/delete.bmp.
+  - QCheckBox "show polygon".
+  - QCheckBox "show controls".
+  - QLineEdit fuer "resolution:" mit Integer-Validator.
+- Apply:
+  - castet active ext vars auf TDVOCPolyCurveExtVar.
+  - setzt Resolution, ShowControls, ShowPolygon.
+  - ruft SendUpdateToParrentOP().
+- Cancel:
+  - beendet VOC_POLYCURVE durch Wechsel auf VOM_SELECT_MOVE_NODE_OBJECT.
+  - versteckt das Dock.
+
+Core-Verifikation
+- tests/ved_core_polygon_polycurve_operation_tests.cpp erweitert:
+  - Test setzt TDVOCPolyCurveExtVar auf Resolution 9, ShowControls false, ShowPolygon false.
+  - erzeugtes TDVecPolyCurve speichert diese Werte.
+
+Verifikation
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 11/11 Tests bestanden.
+
+Hinweise
+- Die Werte werden nicht in MainWindow-Logik gespeichert, sondern wie im alten VED ueber TDVOCPolyCurveExtVar an die Operation uebergeben.
+- Die fachliche Objekt-Speicherung passiert weiter in TDVOCPolyCurve::CreatePolyCurveFromPoints().

@@ -1,0 +1,76 @@
+Port Step 2.017 - Neues Feature: horizontales und vertikales Lineal
+Datum: 2026-05-15
+
+Ziel
+- Neues Feature im Qt-Port ergaenzen, diesmal mit Erweiterung im VED-Kern/GraphicEngine-Bereich.
+- Ein horizontales und ein vertikales Lineal sollen optional sichtbar sein.
+- Die Lineale sollen dieselbe Masseinheit und dieselben Basisabstaende wie das Grid verwenden.
+- Die Lineale sollen sich bei Zoom-In/Zoom-Out und Pan genauso an die sichtbare reale Koordinate koppeln wie das Grid.
+- Qt soll, wie beim Grid, nur ein- und ausschalten; die eigentliche Zeichnung liegt in der GraphicEngine.
+
+Einordnung
+- Dies ist ein neues Feature, kein 1:1 Borland-Port.
+- Fachlich gehoert die Darstellung zur grafischen View-Hilfe, vergleichbar mit Grid, Achsen und Mouse-Tolerance-Hilfen.
+- Deshalb wurde die Core-Schnittstelle TDGraphicEngine erweitert und die konkrete Qt-Zeichnung in TDGraphicEngineQt umgesetzt.
+
+Core-/GraphicEngine-Aenderung
+- TDGraphicEngine:
+  - Neue virtuelle Methode DrawRulers(long nDist, long nSubDiv, long nResLimit).
+  - Default-Implementierung ist leer, damit andere Engines nicht sofort eine harte Pflichtimplementierung bekommen.
+- TDGraphicEngineQt:
+  - Implementiert DrawRulers(...).
+  - Zeichnet horizontales Lineal oben in der sichtbaren Canvas.
+  - Zeichnet vertikales Lineal links in der sichtbaren Canvas.
+  - Verwendet ScreenToXPos/ScreenToYPos und RealToXPos/RealToYPos fuer dieselbe reale Koordinatenbindung wie Grid.
+  - Tick-Schritte werden aus denselben Grid-Parametern abgeleitet:
+    - Grid-Distanz
+    - Grid-Subdivision
+    - Resolution-Limit
+  - Major-Ticks orientieren sich am Grid-Hauptabstand.
+  - Labels zeigen reale Koordinatenwerte.
+
+Qt/View-Umsetzung
+- QVedWidget:
+  - Neuer Zustand showRulers_.
+  - Public API:
+    - setShowRulers(bool)
+    - showRulers() const
+  - Neue private Methode drawRulers().
+  - drawRulers() ruft graphicEngine_.DrawRulers(kGridDistance, kGridSubDivisions, kGridResolutionLimit).
+  - Damit bleibt QVedWidget nur Schalter/Dispatcher; die konkrete Lineal-Zeichnung bleibt in der GraphicEngine.
+- MainWindow:
+  - Neuer Toolbar-Button "Show Rulers" in der View-Toolbar neben den Grid-Buttons.
+  - Technischer Tooltip/StatusTip: cmdShowRulers.
+  - Icon wird zur Laufzeit als kleines horizontales/vertikales Lineal erzeugt.
+  - Button toggelt QVedWidget::setShowRulers(...).
+
+Dateien
+- src/ved_core/gengine/vec_graphic_engine.h
+- src/ved_qt/gengine/vec_graphic_engine_qt.h
+- src/ved_qt/gengine/vec_graphic_engine_qt.cpp
+- src/app/QVedWidget.h
+- src/app/QVedWidget.cpp
+- src/app/MainWindow.h
+- src/app/MainWindow.cpp
+
+Verhalten
+- Rulers aus:
+  - Verhalten wie bisher.
+- Rulers ein:
+  - horizontales Lineal oben.
+  - vertikales Lineal links.
+  - Ticks und Labels verschieben sich mit Pan/Scroll.
+  - Ticks und Labels skalieren mit Zoom.
+  - Einheiten entsprechen den Grid-Einstellungen des QVedWidget.
+- Grid selbst bleibt unabhaengig schaltbar:
+  - Lineal kann ohne sichtbares Grid angezeigt werden.
+  - Grid kann ohne Lineal angezeigt werden.
+
+Verifikation
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 11/11 Tests bestanden.
+
+Hinweise
+- Die Lineale werden als View-Hilfe in der Canvas gezeichnet und belegen aktuell keinen eigenen Layout-Rand ausserhalb der Zeichenflaeche.
+- Die Core-Operationen und Model-Logik wurden nicht geaendert.

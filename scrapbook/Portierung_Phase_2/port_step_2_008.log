@@ -1,0 +1,56 @@
+Step 2.008 - VOM_MOVE_OBJECT eingebunden
+Datum: 2026-05-14
+
+Ziel:
+- VOM_MOVE_OBJECT als eigene alte VED-Operation portieren, nicht als Alias auf Select-Drag.
+- Semantik aus Borland-VED erhalten:
+  - Operation braucht vorselektierte Objekte.
+  - Bei Aktivierung wird VECVIEW_DOCK benutzt.
+  - Beim Mausbewegen bewegt sich nur ein temporärer Schatten.
+  - Erst linker MouseUp schreibt die echte Verschiebung ins Modell.
+  - Rechtsklick bricht ab und löscht den Schatten.
+
+Umsetzung:
+- Neue Core-Dateien:
+  - src/ved_core/operations/vom_move_object.h
+  - src/ved_core/operations/vom_move_object.cpp
+- OperationManager:
+  - VOM_MOVE_OBJECT erzeugt TDVOMMoveObject.
+  - GetAktiveOperationType erkennt TDVOMMoveObject.
+- Qt-Canvas:
+  - Neuer InteractionMode::MoveObject.
+  - Mouse-Events werden an die Operation weitergeleitet.
+  - Cursor für diesen Modus ist VECVIEW_DOCK.
+- Toolbar:
+  - "Move Object" ist jetzt aktiviert.
+  - Button startet VOM_MOVE_OBJECT und zeigt den gedrückten aktiven Zustand über die bestehende QActionGroup.
+- CMake:
+  - Neue Operation und neuer Test eingebunden.
+
+Fachliche Details:
+- Einzelnes selektiertes Line-Objekt:
+  - Startpunkt der Verschiebung ist der Mittelpunkt der Linie, analog altes VED mpTmpObject->GetMidpoint().
+- Mehrere selektierte Objekte:
+  - Startpunkt ist der Mittelpunkt des gemeinsamen Auswahlrahmens, analog altes VED Temp-Group-Midpoint.
+  - Alle selektierten Lines werden gemeinsam verschoben.
+- Aktueller Port-Scope:
+  - Real verschoben werden derzeit Lines, weil nur TDVecLine im neuen ved_core existiert.
+  - Spätere Objektarten müssen MoveSelectedObjects und die Schatten-Erzeugung erweitern.
+
+Tests:
+- ved_core_move_object_operation_tests ergänzt:
+  - Einzelobjekt: Schatten bewegt vor MouseUp nicht das echte Objekt; linker MouseUp verschiebt.
+  - Mehrfachauswahl: beide selektierte Lines werden gemeinsam verschoben.
+  - Keine Auswahl: Operation aktiviert, verändert aber kein Objekt.
+- Zusätzlich kompletter Testlauf:
+  - 6/6 Tests bestanden.
+
+Nachtrag:
+- Nach Ende von VOM_MOVE_OBJECT wird VOM_SELECT_MOVE_NODE_OBJECT wieder aktiviert.
+- Der OperationManager schaltet nach MouseUp bzw. Rechtsklick-Abbruch zurück, sobald VOM_MOVE_OBJECT in NEEDSELECTED/FINISHED/ABORTED steht.
+- MainWindow synchronisiert danach Toolbar und Canvas-Modus, damit der Select-Button wieder gedrückt ist und die Mausereignisse im SelectMove-Modus weiterlaufen.
+- Test erweitert: Move-Operation muss nach erfolgreichem Einzel- und Gruppen-Move wieder VOM_SELECT_MOVE_NODE_OBJECT aktivieren.
+
+Nicht angefasst:
+- Cursor-PNGs wurden nicht neu konvertiert oder verändert.
+- create_line_1.png und create_line_2.png bleiben unangetastet.

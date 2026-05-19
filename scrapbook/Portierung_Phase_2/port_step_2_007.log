@@ -1,0 +1,182 @@
+Port Step 2_007 - Delete fuer selektierte Line
+Datum: 2026-05-14
+
+Ziel
+----
+Minimal-VED um Loeschen erweitern:
+
+- selektierte Objekte ueber Operation-Pipeline loeschen
+- Delete-Toolbar anbinden
+- Delete-Taste anbinden
+- optionaler interaktiver Delete-Modus per Doppelklick wie alte VED vorbereiten
+
+Alte VED-Basis
+--------------
+`VOM_DELETE_OBJECT` in alter VED:
+
+- setzt `VECVIEW_DELETE_OBJECT`
+- erster Klick auf Objekt zeichnet es temporaer als Outline
+- zweiter Klick auf dasselbe Objekt loescht es
+- wenn das Objekt selektiert war, wird trotzdem ueber Modell-Loeschlogik
+  geloescht
+
+Aktuelle Minimal-Portierung
+---------------------------
+Neue Operation:
+
+- `TDVOMDeleteObject`
+
+Verhalten:
+
+- Konstruktor setzt `OSTATE_RUNNING`.
+- Konstruktor setzt `VECVIEW_DELETE_OBJECT`.
+- Wenn beim Aktivieren bereits Objekte selektiert sind:
+  - `DeleteSelectedObjects()`
+  - `TmpClear()`
+  - `ViewsRefresh()`
+  - Operation geht auf `OSTATE_FINISHED`
+- Wenn keine Objekte selektiert sind:
+  - Operation bleibt im Delete-Modus
+  - erster Linksklick auf Objekt zeigt Objekt temporaer als Outline
+  - zweiter Linksklick auf dasselbe Objekt loescht es
+
+Operation-Manager
+-----------------
+`TDViewOperationManager::SetOperation()` erzeugt jetzt auch:
+
+- `VOM_DELETE_OBJECT` -> `TDVOMDeleteObject`
+
+`GetAktiveOperationType()` erkennt `TDVOMDeleteObject`.
+
+Qt-Adapter / Toolbar
+--------------------
+Delete-Object-Toolbar-Action ist jetzt implementiert:
+
+- startet `editor_->SetOperation(VOM_DELETE_OBJECT)`
+- wird als momentaner Befehl behandelt, nicht als exklusiver Toggle-Modus
+- danach wird wieder `VOM_SELECT_MOVE_NODE_OBJECT` aktiv gesetzt
+- Canvas kehrt in `InteractionMode::SelectObject` zurueck
+
+`QVedWidget` hat jetzt `InteractionMode::DeleteObject`.
+
+Mouse-Events werden in diesem Modus an die Operation-Pipeline weitergeleitet.
+
+`VECVIEW_DELETE_OBJECT` wird im Qt-Adapter aktuell als `Qt::PointingHandCursor`
+angezeigt. Ein originaler Cursor kann spaeter als PNG/Cur-Port folgen.
+
+Korrektur nach manuellem Befund:
+
+- Delete-Taste loeschte korrekt, Toolbar-Button nicht.
+- Nach Rueckvergleich mit alter VED war die erste Korrektur fachlich falsch:
+  `VOM_DELETE_OBJECT` ist kein reiner Moment-Befehl, sondern eine echte aktive
+  Operation mit eigenem Cursor.
+- Der Konstruktor von `TDVOMDeleteObject` loescht deshalb nicht mehr sofort
+  selektierte Objekte.
+- Die Delete-Toolbar ist wieder eine checkbare Operation in der Modify-Gruppe.
+- Toolbar aktiviert:
+  - `SetOperation(VOM_DELETE_OBJECT)`
+  - `InteractionMode::DeleteObject`
+  - `VECVIEW_DELETE_OBJECT`
+- Delete-Modus loescht wie alte VED erst beim zweiten Klick auf dasselbe
+  getroffene Objekt.
+- Die Delete-Taste bleibt als direkter Loeschbefehl erhalten, sendet aber jetzt
+  explizit `VIRTKEY_DELETE` an die aktive Delete-Operation:
+  - `SetOperation(VOM_DELETE_OBJECT)`
+  - `KeyDown(VIRTKEY_DELETE)`
+  - `SetOperation(VOM_SELECT_MOVE_NODE_OBJECT)`
+- `VECVIEW_DELETE_OBJECT` nutzt im Qt-Adapter jetzt einen eigenen Cursor aus
+  `delete_interactive.bmp`; spaeter kann ein original portierter Cursor-PNG
+  folgen.
+
+Korrektur Cursor-Portierung:
+
+- Der originale alte Delete-Cursor liegt in:
+  `borland_ved/src/comp/resource/cur/delete_object.cur`
+- In alter VED wird er ueber `TDCursorManager` so gebunden:
+  `VECVIEW_DELETE_OBJECT -> IDCUR_DELETE_OBJECT`.
+- Alle alten Cursor aus `borland_ved/src/comp/resource/cur/*.cur` wurden mit
+  ImageMagick nach `src/app/resources/cursors/*.png` konvertiert.
+- Die originalen `.cur` wurden zusaetzlich in denselben Qt-Resource-Ordner
+  kopiert, bleiben aber nur Referenz/Backup; die Qt-Operationen nutzen PNG.
+- Die Cursor-Hotspots wurden aus den `.cur`-Headern ausgelesen und im
+  Qt-Mapping explizit gesetzt.
+- `VECVIEW_DELETE_OBJECT` nutzt jetzt:
+  `:/ved/cursors/delete_object.png` mit Hotspot `(6,6)`.
+- `QVedWidget::useCursor()` mappt jetzt alle aktuell im Enum vorhandenen
+  Operations-Cursor auf die portierten PNG-Dateien:
+  - Select
+  - Zoom
+  - Plus
+  - Dock
+  - No
+  - Delete Object
+  - Line
+  - Circle
+  - Ellipse
+  - Polygon
+  - PolyCurve
+  - Rectangle
+  - B-Spline
+  - VecText
+
+Keyboard
+--------
+Delete-Taste ist angebunden:
+
+- startet `VOM_DELETE_OBJECT`
+- danach wieder `VOM_SELECT_MOVE_NODE_OBJECT`
+- Canvas bleibt/kehrt in Select-Modus
+
+Tests
+-----
+Neu hinzugefuegt:
+
+tests/ved_core_delete_operation_tests.cpp
+
+Geprueft wird:
+
+- Aktivieren von `VOM_DELETE_OBJECT` loescht eine selektierte Line.
+- Aktivieren loescht mehrere selektierte Lines.
+- Ohne vorherige Auswahl loescht erster Klick nicht sofort.
+- Zweiter Klick auf dasselbe Objekt loescht es.
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+5/5 Tests bestanden:
+
+- `ved_core_line_tests`
+- `ved_core_model_tests`
+- `ved_core_select_operation_tests`
+- `ved_core_select_move_operation_tests`
+- `ved_core_delete_operation_tests`
+
+Bekannte Grenzen
+----------------
+Noch nicht Bestandteil von Step 007:
+
+- Persistenz Save/Load
+- originaler Delete-Cursor als portierte Cursor-Grafik
+- manuelle GUI-Verifikation des interaktiven Doppelklick-Delete-Modus
+
+Naechster Schritt
+-----------------
+`port_step_2_008`: Persistenz fuer Minimal-VED.
+
+Geplante Inhalte:
+
+- Line-Objekte in Datei speichern
+- Datei laden und Line-Objekte wiederherstellen
+- minimale File-Menue-Actions fuer Save/Load
+- Tests fuer Roundtrip

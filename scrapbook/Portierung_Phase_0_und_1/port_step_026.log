@@ -1,0 +1,63 @@
+Port Step 026 - GridResolutionLimit wirksam machen
+Datum: 2026-05-14
+
+Problem
+-------
+Eine Aenderung von `kGridResolutionLimit` von 3 auf 2 oder 1 war visuell kaum
+spuerbar.
+
+Ursache
+-------
+Die adaptive Grid-Logik aus `port_step_024` hatte zwei Effekte, die den Wert
+praktisch maskiert haben:
+
+```text
+1. gridStep wurde immer mit Faktor 10 vergroebert.
+2. kMaxGridPointsPerPaint konnte frueher greifen als die Pixel-Toleranz.
+```
+
+Dadurch sprang das Grid zu grob zwischen Stufen und kleine Aenderungen der
+Pixel-Toleranz waren kaum sichtbar.
+
+Korrektur
+---------
+Die GridStep-Auswahl nutzt jetzt feinere 1/2/5-Stufen:
+
+```text
+1000, 2000, 5000, 10000, 20000, 50000, ...
+```
+
+Der benoetigte GridStep wird aus drei Grenzen berechnet:
+
+```text
+1. Basisschritt: GridSize / GridSubDiv
+2. Pixel-Toleranz: kGridResolutionLimit
+3. Punktbudget: kMaxGridPointsPerPaint
+```
+
+Danach wird auf die naechste sinnvolle 1/2/5-Stufe gerundet.
+
+Aktuelle Werte
+--------------
+```cpp
+constexpr long kGridResolutionLimit = 1;
+constexpr int kMaxGridPointsPerPaint = 80000;
+```
+
+Ergebnis
+--------
+`kGridResolutionLimit` wirkt jetzt deutlich direkter. Kleinere Werte halten
+feinere Grid-Stufen laenger sichtbar, ohne dass die View bei ZoomOut zu viele
+Punkte zeichnet.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

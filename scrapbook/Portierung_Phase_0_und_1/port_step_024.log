@@ -1,0 +1,49 @@
+Port Step 024 - Grid bei ZoomOut adaptiv grob halten
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach `port_step_022.log` wurde das Grid bei zu kleinem Punktabstand komplett
+unterdrueckt. Gewuenscht ist aber: beim ZoomOut darf das Grid weiter bestehen,
+solange es in groberer Stufe sinnvoll sichtbar bleibt.
+
+Korrektur
+---------
+`QVedWidget::drawGrid()` waehlt den Grid-Schritt jetzt adaptiv:
+
+```text
+Start: GridSize / GridSubDiv = 10000 / 10 = 1000
+Wenn Pixelabstand zu klein oder zu viele Punkte:
+    GridStep *= 10
+```
+
+Damit wird bei ZoomOut nicht mehr das dichte Subgrid gezeichnet, sondern auf
+grobere Grid-Stufen umgeschaltet.
+
+Schutzgrenzen
+-------------
+Das Grid wird nur gezeichnet, wenn:
+
+```text
+RealToXVal(GridStep) >= 3
+RealToYVal(GridStep) >= 3
+Gridpunkte pro Paint <= 20000
+GridStep <= 1000000000
+```
+
+Ergebnis
+--------
+Bei ZoomOut bleibt Grid sichtbar, aber in groberer Aufloesung. Die Canvas wird
+nicht mehr durch massenhaft dicht liegende Punkte verdunkelt.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

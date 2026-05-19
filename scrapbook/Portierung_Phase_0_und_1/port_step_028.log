@@ -1,0 +1,33 @@
+Port Step 028 - Hauptgrid sichtbar von Subgrid unterscheiden
+Datum: 2026-05-14
+
+Problem
+-------
+Der Unterschied zwischen Hauptgrid und Subgrid war praktisch nicht sichtbar.
+Beide Ebenen wurden als 1-Pixel-Punkte gezeichnet; der reine Grauwertunterschied
+war zu schwach wahrnehmbar.
+
+Korrektur
+---------
+Das Hauptgrid wird jetzt nicht nur dunkler, sondern als kleines Plus/Kreuz
+gezeichnet:
+
+```text
+Subgrid   -> einzelner Punkt, 0x00808080
+Hauptgrid -> kleines Kreuz, 0x00282828
+```
+
+Die Kreuzgroesse wird aus `ScreenToXVal(2)` / `ScreenToYVal(2)` berechnet und
+bleibt dadurch screenbezogen sichtbar.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

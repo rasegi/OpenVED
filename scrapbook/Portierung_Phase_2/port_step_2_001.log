@@ -1,0 +1,100 @@
+Port Step 2_001 - Minimal-VED-Baseline sichern
+Datum: 2026-05-14
+
+Ziel
+----
+Den aktuellen Stand fuer Portierungsplan 2 als belastbare Baseline festhalten.
+Dieser Step fuehrt keine neue Funktion ein. Er klaert, was tatsaechlich
+funktioniert und was nur als UI-Skelett vorhanden ist.
+
+Geaenderte Dateien
+------------------
+scrapbook/port_step_2_001.log
+
+Keine Code-Aenderungen.
+
+Build / Verifikation
+--------------------
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+[0/2] Re-checking globbed directories...
+ninja: no work to do.
+
+Der bestehende Debug-Build ist damit sauber.
+
+Aktueller funktionaler Stand
+----------------------------
+Vorhanden:
+
+- Qt-App-Shell mit MainWindow, Toolbars und Canvas.
+- Canvas mit Rendering, Grid, Scrollbars und Zoom-Grundfunktion.
+- `TDVecLine` als einziger relevanter portierter Objekttyp.
+- `TDVecModel` mit Objektliste, Append, Count, GetObject, DeselectAll und Clear.
+- `TDViewOperationManager` als reduzierter Operation-Manager.
+- `VOC_LINE` als einzige im Operation-Manager instanziierte echte Operation.
+- Toolbar-Action `Line` aktiviert `editor_->SetOperation(VOC_LINE)` und den
+  Canvas-Modus `CreateLine`.
+- `VOC_LINE` erzeugt ueber die alte Operation-Pipeline ein `TDVecLine` und
+  schreibt es in das Modell.
+- Vier Cursor-Ressourcen sind im neuen Bestand vorhanden:
+  - `create_line_1.cur`
+  - `create_line_2.cur`
+  - `select_object.cur`
+  - `zoom.cur`
+- Dieselben vier Cursor liegen zusaetzlich als PNG-Portierung vor und werden
+  fuer Qt-Cursor mit expliziten Hotspots genutzt:
+  - `create_line_1.png`, Hotspot 11/11
+  - `create_line_2.png`, Hotspot 11/11
+  - `select_object.png`, Hotspot 7/11
+  - `zoom.png`, Hotspot 9/8
+
+Nicht vorhanden / nicht echt portiert
+-------------------------------------
+- Kein Hit-Testing im Core.
+- Keine echte Selektionsoperation.
+- Keine echte Move-Object-Operation.
+- Keine echte Move-Node-Operation.
+- Keine echte Delete-Object-Operation.
+- Keine Persistenz: Save/Open sind Toolbar-Skelett, aber nicht fachlich
+  angebunden.
+- Modify-Toolbar-Actions wie `VOM_MOVE_OBJECT`, `VOM_MOVE_NODE`,
+  `VOM_DELETE_OBJECT` sind sichtbar, aber nicht als implementiert markiert und
+  nicht im Operation-Manager registriert.
+- `TDViewOperationManager::SetOperation` erzeugt aktuell nur bei `VOC_LINE`
+  eine Operation; alle anderen Operationen fallen in `default`.
+
+Architekturentscheidung fuer Portierungsplan 2
+----------------------------------------------
+Die naechsten Schritte duerfen die fehlenden Funktionen nicht im Qt-Widget
+nachbauen. `QVedWidget` soll weiterhin Eingaben uebersetzen und an die
+Operation-Pipeline geben. Fachliche Entscheidungen gehoeren in:
+
+- `TDVecLine` fuer Geometrie, Hit-Test und Mutation
+- `TDVecModel` fuer Suche, Auswahl und Loeschen
+- `TDViewOperation`-Ableitungen fuer Maus-Zustandsautomaten
+
+Damit wird aus dem Qt-Slice eine kleine echte VED-Pipeline.
+
+Naechster Schritt
+-----------------
+`port_step_2_002`: `TDVecLine` fachlich vervollstaendigen.
+
+Geplante Inhalte:
+
+- Hit-Test auf Linie mit Toleranz
+- Hit-Test auf Start- und Endpunkt
+- `MoveBy(dx, dy)`
+- `MoveNode(nodeId, point)`
+- kleine Core-Tests oder mindestens ein fokussierter Test-Harness fuer diese
+  Geometrie-Operationen
+
+Bekannte Restpunkte
+-------------------
+- Manuelle GUI-Verifikation wurde in diesem Step nicht gestartet; Step 2_001
+  bleibt bewusst Build- und Code-Baseline.
+- Die aktuelle App kann eine Linie erzeugen, aber danach noch nicht als VED
+  weiterbearbeiten.

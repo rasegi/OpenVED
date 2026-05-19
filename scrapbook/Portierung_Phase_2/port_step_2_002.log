@@ -1,0 +1,183 @@
+Port Step 2_002 - TDVecLine Hit-Test und Mutation
+Datum: 2026-05-14
+
+Ziel
+----
+`TDVecLine` fachlich so erweitern, dass die naechsten Minimal-VED-Schritte
+Selektion, Move-Object und Move-Node im Core aufbauen koennen.
+
+Dieser Step bleibt bewusst ausserhalb der Qt-Widget-Logik.
+
+Geaenderte Dateien
+------------------
+CMakeLists.txt
+src/app/MainWindow.cpp
+src/app/QVedWidget.cpp
+src/app/QVedWidget.h
+src/ved_core/vecobjects/vec_data.h
+src/ved_core/vecobjects/vec_data.cpp
+tests/ved_core_line_tests.cpp
+scrapbook/port_step_2_002.log
+
+Fachliche Aenderungen
+---------------------
+Neue Core-Typen:
+
+- `TDVecLineHitKind`
+  - `None`
+  - `Body`
+  - `StartNode`
+  - `EndNode`
+  - `MidpointNode`
+- `TDVecLineHitResult`
+  - `kind`
+  - `distance`
+  - `IsHit()`
+  - `IsNodeHit()`
+
+Neue `TDVecLine`-Methoden:
+
+- `HitTest(point, tolerance)`
+- `HitTestLine(point, tolerance)`
+- `HitTestNode(point, tolerance)`
+- `MoveBy(dx, dy)`
+- `MoveNode(nodeKind, point)`
+
+Verhalten
+---------
+`HitTest()` priorisiert Nodes vor Linienkoerper. Das ist wichtig fuer spaetere
+Bedienung: Wenn die Maus auf einem Endpunkt oder Mittelpunkt liegt, soll nicht
+die Linie als Ganzes gewinnen.
+
+`HitTestLine()` verwendet den Abstand Punkt-zu-Strecke mit Projektion auf das
+Liniensegment. Punkte ausserhalb des Segments treffen daher nicht ungewollt die
+unendliche Gerade.
+
+`HitTestNode()` prueft Startpunkt, Endpunkt und Mittelpunkt und liefert den
+naechsten Treffer innerhalb der Toleranz.
+
+`MoveNode()`:
+
+- `StartNode` setzt Startpunkt.
+- `EndNode` setzt Endpunkt.
+- `MidpointNode` verschiebt die ganze Linie so, dass der Mittelpunkt auf dem
+  Zielpunkt liegt.
+- `Body` und `None` werden abgelehnt.
+
+Test / Verifikation
+-------------------
+Neu hinzugefuegt:
+
+tests/ved_core_line_tests.cpp
+
+Geprueft wird:
+
+- Treffer auf Startpunkt
+- Treffer auf Endpunkt
+- Treffer auf Mittelpunkt
+- Treffer auf Linienkoerper
+- Nichttreffer ausserhalb der Toleranz
+- `MoveBy`
+- `MoveNode(StartNode)`
+- `MoveNode(EndNode)`
+- `MoveNode(MidpointNode)`
+- Ablehnung von `MoveNode(Body)`
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Bekannte bestehende Warnungen:
+
+- `vop_base.cpp`: alte `if(!this)`-Pruefungen erzeugen Clang-Warnungen.
+- `voc_line.cpp`: `OSTATE_NEEDSELECTED` nicht im Switch behandelt.
+
+Diese Warnungen stammen aus bereits portiertem Legacy-Code und wurden in diesem
+Step nicht veraendert.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+1/1 Test #1: ved_core_line_tests ..............   Passed
+100% tests passed, 0 tests failed out of 1
+
+Architekturentscheidung
+-----------------------
+Hit-Test und Mutation liegen ab jetzt am Objekt, nicht in `QVedWidget`.
+Die spaeteren Operationen koennen damit das Modell fragen und Objekte bewegen,
+ohne Qt-spezifische Sonderlogik einzubauen.
+
+Nachtrag: Select-Cursor-Anbindung
+---------------------------------
+Nach Hinweis wurde die Select-Toolbar-Action als UI-Adapter-Korrektur an den
+bereits vorhandenen `VECVIEW_SELECT_OBJECT`-Cursorpfad angebunden.
+
+Wichtig: Das ist noch keine fachliche Select-Operation. Es aktiviert nur den
+Canvas-Modus `SelectObject`, setzt `select_object.png` mit Hotspot 7/11 und
+verhindert, dass der Cursorpfad unbenutzt bleibt.
+
+Geaendert:
+
+- `QVedWidget::InteractionMode::SelectObject`
+- `QVedWidget::setInteractionMode()` setzt bei diesem Modus
+  `VECVIEW_SELECT_OBJECT`
+- `MainWindow` bindet die Select-Toolbar-Action an diesen Modus
+
+Verifikation nach Nachtrag:
+
+- `cmake --build cmake-build-debug`
+- `ctest --test-dir cmake-build-debug --output-on-failure`
+
+Ergebnis:
+
+- Build erfolgreich
+- `ved_core_line_tests` bestanden
+
+Nachtrag: alte Select-Cursor-/GridLock-Semantik
+-----------------------------------------------
+Analyse des alten VED:
+
+- `VECVIEW_CURSOR_DEFAULT` und `VECVIEW_SELECT_OBJECT` werden beide auf
+  `IDCUR_SELECT_OBJECT` gemappt.
+- Die alten Select-/Modify-Operationen setzen meist
+  `VECVIEW_CURSOR_DEFAULT`, nicht explizit `VECVIEW_SELECT_OBJECT`.
+- `select_object.cur` enthaelt nur den Pfeil/Zeiger, nicht den kleinen
+  Lock-/Toleranzkreis.
+- Der kleine Kreis wird als Overlay ueber
+  `TDGraphicEngineScreen::DrawMouseToleranz(X, Y)` gezeichnet.
+- `TSCVecView::MouseDown`, `MouseMove` und `MouseUp` snapen bei `mbGridLock`
+  die Real-Koordinaten ueber `AdjustToGrid()` bevor sie an
+  `TDVecEditCad`/Operationen weitergegeben werden.
+- Damit haben sichtbarer Toleranzkreis und Operationskoordinate denselben
+  gesnappten Mittelpunkt.
+
+Konsequenz fuer die naechsten Steps:
+
+- `QVedWidget::operationPoint()` muss GridLock fuer alle Operationen anwenden,
+  nicht nur fuer `InteractionMode::CreateLine`.
+- `QVedWidget` soll den Toleranzkreis weiter als Overlay zeichnen, nicht in
+  Cursor-PNGs hineinrendern.
+- Select soll kompatibel behandelt werden: Default-Cursor und
+  `VECVIEW_SELECT_OBJECT` zeigen auf denselben `select_object` Cursor.
+- Diese Punkte sind fuer `port_step_2_003`/`port_step_2_004` verpflichtend,
+  damit Select, Move und Node-Move spaeter dieselben Koordinaten verwenden wie
+  der sichtbare Lock-Kreis.
+
+Naechster Schritt
+-----------------
+`port_step_2_003`: Modell-Selektion und Objekt-/Node-Suche.
+
+Geplante Inhalte:
+
+- `TDVecModel::FindObjectAt(point, tolerance)`
+- `TDVecModel::FindNodeAt(point, tolerance)`
+- zentrale Auswahlmethoden
+- `GetSelectedObject()`
+- Entfernen selektierter Objekte oder mindestens gezieltes Entfernen nach Index

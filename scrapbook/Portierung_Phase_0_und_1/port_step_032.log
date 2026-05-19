@@ -1,0 +1,114 @@
+Port Step 032 - VOC_LINE durch alte Operation statt Qt-Bruecke ausfuehren
+Datum: 2026-05-14
+
+Ausloeser
+---------
+`port_step_031.log` hatte `VOC_LINE` noch als temporaere Qt-Bruecke
+implementiert: `QVedWidget` sammelte zwei Klicks und `MainWindow` erzeugte
+direkt eine `TDVecLine`.
+
+Ziel dieses Schritts war, diese direkte Erzeugung durch die alte
+Operationslogik zu ersetzen.
+
+Kopierte Legacy-Dateien
+-----------------------
+Aus `borland_ved` wurden in die neue Core-Struktur kopiert:
+
+```text
+borland_ved/src/comp/operations/vop_base.h
+borland_ved/src/comp/operations/vop_base.cpp
+borland_ved/src/comp/operations/voc_line.h
+borland_ved/src/comp/operations/voc_line.cpp
+borland_ved/src/comp/main/vop_manager.h
+borland_ved/src/comp/main/vop_manager.cpp
+```
+
+Zielordner:
+
+```text
+src/ved_core/operations/
+```
+
+Die kopierten Dateien wurden wegen Borland/Latin-1-Encoding nach UTF-8
+konvertiert. `borland_ved` wurde nicht veraendert.
+
+Umsetzung
+---------
+`TDVOCLine` kompiliert jetzt als Teil von `ved_core`.
+
+Ergaenzte Infrastruktur:
+
+```text
+TDViewOperationManager
+TDViewOperation / TDVOCreate
+TDVecEditCad::MouseDown/MouseMove/MouseUp
+TDVecEditCad::TmpAppend/TmpClear
+TDVecEditCad::UseCursor/GetUsedCursor
+TDVecModel::GetDefaultColor
+TDVecLine::SetLine(TDMatLine*)
+TDMatLine::Create/Length/InitialWithNULL
+TDMatPoint::Create
+```
+
+`QVedWidget` erzeugt keine Linie mehr selbst. Es wandelt Qt-Mausereignisse in
+alte virtuelle VED-Mausereignisse um und reicht diese ueber `MainWindow` an
+`TDVecEditCad` weiter:
+
+```text
+QVedWidget
+-> MainWindow callback
+-> TDVecEditCad::MouseDown/Move/Up
+-> TDViewOperationManager
+-> TDVOCLine
+```
+
+Grid-Lock
+---------
+Bei aktivem `cmdLockGrid` werden die Operation-Koordinaten vor dem Weitergeben
+an die alte Operation auf das naechstgelegene Grid gerundet.
+
+Aktueller Basissnap:
+
+```text
+kGridDistance / kGridSubDivisions = 10000 / 10 = 1000
+```
+
+Damit springt `VOC_LINE` jetzt nicht nur visuell, sondern die alte Operation
+bekommt selbst die gesnappten Koordinaten.
+
+Zusaetzlich wird bei aktivem Grid-Lock die vorhandene alte Toleranz-Markierung
+ueber `TDGraphicEngineQt::DrawMouseToleranz()` an der gesnappten Position
+gezeichnet. Das ist naeher am alten VED-Kreis als ein neu erfundener grosser
+Crosshair-Cursor.
+
+Hinweis
+-------
+Der neue `TDViewOperationManager` ist noch ein reduzierter Slice. Er kennt im
+Moment nur die bereits portierte Operation `VOC_LINE`. Die alte Manager-Datei
+wurde absichtlich nicht komplett aktiviert, weil die weiteren Operationen noch
+nicht nach `ved_core` verschoben und kompilierbar gemacht wurden.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die gleiche Operation-Pipeline fuer weitere create commands vorbereiten:
+
+1. `VOC_RECTANGLE_NOTROTATED` oder `VOC_CIRCLE_MIDPOINT` als naechste kleine
+   Create-Operation aus `borland_ved` nach `src/ved_core/operations` kopieren.
+2. Dabei gemeinsam benoetigte Objekt- und Math-Methoden nicht ad hoc im Widget,
+   sondern in `ved_core` nachziehen.
+3. Danach `TDViewOperationManager::SetOperation()` schrittweise um die
+   portierten `VOC_*`-Operationen erweitern.
+4. Fuer Modify-Operationen spaeter dieselbe Maus-Snap-Anzeige nutzen, aber die
+   eigentliche Objektmanipulation in der alten `VOM_*`-Operation belassen.

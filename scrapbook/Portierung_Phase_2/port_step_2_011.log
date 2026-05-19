@@ -1,0 +1,141 @@
+Step 2.011 - cmdMakeGroup/cmdResolveGroup ueber OperationManager
+Datum: 2026-05-14
+
+Ziel:
+- Alte VED Toolbar-Kommandos cmdMakeGroup und cmdResolveGroup Qt-treu verdrahten.
+- Keine neue VOM-Operation einfuehren, weil altes VED ebenfalls direkt auf TDVecModel delegiert.
+
+Alter VED Ablauf:
+- TfrmMain::cmdMakeGroupClick:
+  - mpVecModel->MakeGroup()
+  - bei Erfolg mpVecController->ViewsRefresh()
+- TfrmMain::cmdResolveGroupClick:
+  - mpVecModel->ResolveAllSelectedGroups()
+  - bei Erfolg mpVecController->ViewsRefresh()
+
+Qt-Port:
+- TDViewOperationManager ergaenzt:
+  - MakeGroup()
+  - ResolveAllSelectedGroups()
+- MainWindow ruft nur noch diese Manager-Methoden auf.
+- Die Toolbar-Buttons Make Group und Resolve Group sind aktiviert.
+
+Core-Ergaenzungen:
+- TDVecGroup als TDVecObject ergaenzt.
+- TDVecModel ergaenzt:
+  - MakeGroup()
+  - ResolveGroup(int)
+  - ResolveAllSelectedGroups()
+- Aktueller Umfang:
+  - Gruppe kann aktuell portierte TDVecObject-Subklassen aufnehmen.
+  - Draw/HitTest/MoveBy/ToScale werden an die enthaltenen Objekte delegiert.
+
+Tests:
+- ved_core_model_tests erweitert:
+  - zwei selektierte Linien werden zu einer TDVecGroup.
+  - TDVecGroup ist selektiert und enthaelt zwei Objekte.
+  - ResolveAllSelectedGroups stellt zwei selektierte Linien wieder her.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Nachtrag - Toolbar-Enable-Regeln fuer Group-Kommandos:
+- cmdMakeGroup ist nur aktiv, wenn mehr als ein Objekt selektiert ist.
+- cmdResolveGroup ist aktiv, sobald mindestens ein selektiertes Objekt eine TDVecGroup ist.
+- Die Buttons werden nach MouseDown/MouseUp, Delete-Shortcut, MakeGroup und ResolveGroup neu synchronisiert.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Nachtrag - Gruppen-DrawNodes ohne Rahmen:
+- Alte VED TDVecGroup::DrawNodes zeichnet nur die acht Gruppen-Nodes und den Mittelpunkt.
+- Der Qt-Port hatte in TDVecGroup::DrawNodes zusaetzlich DrawFrame(pGE) gerufen.
+- Korrektur:
+  - DrawFrame-Aufruf aus TDVecGroup::DrawNodes entfernt.
+  - Gruppen-Nodes werden explizit wie in alter VED gezeichnet.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Nachtrag - VOM_SELECT_MOVE_NODE_OBJECT wieder polymorph fuer Object-Nodes:
+- Ursache fuer "Node verschieben geht nicht":
+  - TDVOMSelectMoveNodeObject war noch immer linien-spezifisch.
+  - Der Node-Zustand wurde als TDVecLineHitKind gespeichert.
+  - Shadow und finaler MouseUp riefen nur TDVecLine::MoveNode(...) nach dynamic_cast<TDVecLine*> auf.
+  - Damit konnte eine TDVecGroup ihren eigenen Node/Frame-Node nie ueber diese Operation bewegen.
+- Zweite Ursache:
+  - Der Hit-Test der Operation suchte nur ueber FindObjectAt().
+  - Alte VED FindObject prueft aber bei bereits selektierten Objekten zusaetzlich PointOnNode(...).
+  - Ein Klick auf einen selektierten Gruppen-Node konnte deshalb als "kein Objekt" enden.
+- Korrektur:
+  - TDVecObject hat wieder polymorphe PointOnNode(...)- und MoveNode(...)-Methoden im Qt-Core.
+  - TDVecLine implementiert PointOnNode/MoveNode Borland-nah mit Node 0/1 und Delta-Bewegung.
+  - TDVecGroup implementiert PointOnNode ueber die sichtbaren Gruppen-Frame-Nodes und MoveNode ueber MoveFrameNode,
+    analog zur alten TDVecGroup::MoveNode/DoMoveFrameNode-Logik bei rotateAngle ~= 0.
+  - TDVecEllipse bindet PointOnNode/MoveNode vorerst ueber die vorhandene Frame-Node-Implementierung an.
+  - TDVOMSelectMoveNodeObject speichert wieder eine long Node-Nummer und ruft mpObject->MoveNode(...) polymorph auf.
+  - FindHit prueft zuerst Nodes bereits selektierter Objekte, wie alte VED FindObject.
+- Test erweitert:
+  - Gruppenmove klickt jetzt bewusst auf eine Linienposition ausserhalb eines Frame-Nodes.
+  - Neuer Test: selektierte Gruppe, Klick auf Gruppen-Node P3/P4-Ecke, Drag, MouseUp, Resolve,
+    beide Linien sind skaliert.
+- Mathlib wurde nicht geaendert.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Grenzen:
+- TDVecGroup ist fuer die bisher portierten Objektklassen ausreichend.
+- Die vollstaendige alte interne Group-Transformation mit Origin/Rotate/Scale-State wird beim weiteren Gruppen-/Transformationsport gesondert gegen Borland abgeglichen.
+
+Nachtrag - Gruppe im Select/Move-Pfad bewegbar gemacht:
+- Ursache:
+  - VOM_SELECT_MOVE_NODE_OBJECT war noch linien-spezifisch.
+  - Move-Shadow und finaler Move liefen ueber dynamic_cast<TDVecLine*>.
+  - Eine selektierte TDVecGroup wurde zwar getroffen/selektiert, aber nicht als bewegbares TDVecObject behandelt.
+- Korrektur:
+  - UpdateMoveShadow nutzt jetzt TDVecObject::Clone() und TDVecObject::MoveBy().
+  - UpdateGroupShadow nutzt ebenfalls polymorphe TDVecObject-Clones statt nur TDVecLine.
+  - Finaler MouseUp-Move ruft mpObject->MoveBy(...) auf.
+- Test erweitert:
+  - Gruppe aus zwei Linien erzeugen.
+  - Gruppe per VOM_SELECT_MOVE_NODE_OBJECT anklicken und ziehen.
+  - Gruppe wieder aufloesen und pruefen, dass beide Linien verschoben wurden.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.
+
+Nachtrag - TDVecGroup Frame-Node/Scale vollstaendiger portiert:
+- Ursache fuer "Group Move klappt, Move Node klappt nicht":
+  - Move lief nur ueber TDVecGroup::MoveBy().
+  - Frame-Node/Resize laeuft aber ueber TDVecObject::MoveFrameNode() -> TDVecGroup::ToScale().
+  - TDVecGroup::ToScale war im ersten Port nur eine vereinfachte Delegation an die enthaltenen Objekte.
+- Korrektur:
+  - TDVecGroup traegt jetzt wie alte VED wieder eigenen Transformationszustand:
+    - rotateAngle
+    - xScale/yScale
+    - originPoint
+    - xLength/yLength
+    - topLeft/bottomRight boundary
+    - oldFrame
+  - FirstInitialize transformiert enthaltene Objekte in Gruppenkoordinaten.
+  - Draw/HitTest/GetCopyFromGroup transformieren Clones zur Laufzeit zurueck in reale Koordinaten.
+  - MoveBy bewegt die Gruppe ueber originPoint.
+  - ToScale folgt der alten Borland-Logik: temporaer reale Kinder bilden, skalieren, neuen Frame/Origin berechnen,
+    alten lokalen Inhalt behalten und nur den Gruppen-Scale-Zustand aktualisieren.
+  - Line/Ellipse haben TransformToPoint/TransformToOrigin/Rotate erhalten, weil TDVecGroup diese Objekt-API aus
+    der alten VED voraussetzt.
+- Test erweitert:
+  - Gruppe aus zwei Linien erzeugen.
+  - In VOM_SELECTMOVE_OBJ_SCALE_FRAME den Gruppen-Frame-Node ziehen.
+  - Gruppe aufloesen und pruefen, dass beide Linien skaliert wurden.
+- Mathlib wurde nicht geaendert.
+- Build und kompletter Testlauf:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 8/8 Tests bestanden.

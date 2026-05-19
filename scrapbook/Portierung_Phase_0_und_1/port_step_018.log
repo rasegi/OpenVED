@@ -1,0 +1,78 @@
+Port Step 018 - cmdShowGrid/cmdLockGrid Toolbar-Wirkung korrigieren
+Datum: 2026-05-14
+
+Ausloeser
+---------
+`cmdShowGrid` und `cmdLockGrid` sollten nach `port_step_017.log` aus der
+Toolbar funktionieren, in der laufenden Anwendung war aber kein Grid sichtbar.
+
+Ursache
+-------
+Die Toolbar-Verbindung war nicht die einzige Problemstelle. Das groessere
+Problem war die Grid-Sichtbarkeit:
+
+```text
+kGridSubDivisions = 10
+kGridResolutionLimit = 4
+```
+
+Bei der aktuellen Canvas-Hoehe lag der Unterteilungsabstand in Y unter dem
+Resolution-Limit. Dadurch hat `TDGraphicEngineQt::DrawGrid()` korrekt nach
+alter VED-Semantik das komplette Grid verworfen:
+
+```cpp
+if (RealToXVal(subDist) < nResLimit || RealToYVal(subDist) < nResLimit)
+    return;
+```
+
+Korrektur
+---------
+Fuer den sichtbaren aktuellen Qt-Stand wird ein groberes Default-Grid
+gezeichnet:
+
+```text
+kGridSubDivisions = 1
+kGridResolutionLimit = 1
+kGridColor = 0x00808080
+```
+
+Damit ist `cmdShowGrid` direkt sichtbar, ohne zuerst stark hineinzuzoomen.
+
+Toolbar-Anbindung
+-----------------
+Die View-Actions sind nun explizit ueber `triggered` und `isChecked()` mit dem
+Canvas verbunden:
+
+```text
+VOP_ZOOM_IO -> QVedWidget::setZoomToolEnabled(...)
+cmdShowGrid -> QVedWidget::setShowGrid(...)
+cmdLockGrid -> QVedWidget::setGridLock(...)
+```
+
+Zusaetzlich gibt es Statusbar-Meldungen:
+
+```text
+cmdShowGrid on/off
+cmdLockGrid on/off
+VOP_ZOOM_IO on/off
+```
+
+Damit ist erkennbar, ob der Toolbar-Klick wirklich ankommt.
+
+Grenze
+------
+`cmdLockGrid` aktiviert aktuell nur den Grid-Lock-State im ViewInterface. Das
+eigentliche Einrasten von Mauskoordinaten kann erst greifen, wenn die alten
+Create-/Modify-Operationen an `TDVecEditCad` angeschlossen sind.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

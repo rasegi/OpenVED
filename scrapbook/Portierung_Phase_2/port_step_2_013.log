@@ -1,0 +1,67 @@
+Port Step 2.013 - Polygon und PolyCurve create portiert
+Datum: 2026-05-15
+
+Ziel
+- VOC_POLYGON_SMARTLINE und VOC_POLYCURVE aus dem Borland-VED fachlich treu in den Qt-Port uebernehmen.
+- Keine Architektur-Aenderung am Modell.
+- Keine Aenderung an vec_math_base oder mathematischer Basis.
+
+Borland-Vergleich
+- VOC_POLYGON_SMARTLINE:
+  - Linksklick sammelt TDMatPoint-Punkte.
+  - Rechtsklick beendet und erzeugt TDVecPolygon.
+  - Rechts+Shift beendet und haengt den ersten Punkt nochmals an, damit der Polygonzug geschlossen ist.
+  - Cursor: VECVIEW_CREATE_POLYGON_SMARTLINE_1/2.
+- VOC_POLYCURVE:
+  - Linksklick erzeugt CPT_PRIME_LINE.
+  - Ctrl+Linksklick erzeugt CPT_PRIME_QSPLINE nur nach einem Linienpunkt.
+  - Rechtsklick beendet nur, wenn der letzte ConturPoint CPT_PRIME_LINE ist, sonst Beep.
+  - Rechts+Shift beendet und haengt den ersten Punkt als CPT_PRIME_LINE an.
+  - External Variables: Resolution 5, ShowControls true, ShowPolygon true.
+  - Cursor: VECVIEW_CREATE_POLYCURVE_SMARTLINE_1/2.
+
+Umsetzung
+- TDVecPolygon als TDVecObject ergaenzt:
+  - Type VECOBJ_POL.
+  - Offener Polygonzug, Draw ruft DrawPolygon direkt mit den gespeicherten Punkten auf.
+  - DrawNodes nutzt NODE_POLY_START, NODE_POLY_END, NODE_NORMAL und NODE_MIDPOINT.
+  - Clone, HitTest, HitTestNode, PointOnNode, MoveBy, MoveNode, ToScale, Rotate, TransformToPoint/Origin.
+  - Punkt-API: InsertPoint, AppendPoint, RemovePoint, ClearPoints, GetPoint, CountPoints.
+- TDVecPolyCurve als TDVecObject ergaenzt:
+  - Type VECOBJ_POLYCURVE.
+  - Offene PolyCurve mit CPT_PRIME_LINE und CPT_PRIME_QSPLINE.
+  - Draw zeichnet Liniensegmente und QSpline-Segmente analog zum vorhandenen Area-Port.
+  - DrawNodes zeichnet Linienpunkte als NODE_NORMAL, Control-Points bei ShowControls als NODE_CONTROL, plus NODE_MIDPOINT.
+  - Clone, HitTest, HitTestNode, PointOnNode, MoveBy, MoveNode, ToScale, Rotate, TransformToPoint/Origin.
+  - PolyCurve-Settings: Resolution, ShowControls, ShowPolygon.
+  - ConturPoint-API: InsertPoint, AppendPoint, RemovePoint, ClearPoints, GetPoint, CountPoints.
+- Neue Operationen:
+  - src/ved_core/operations/voc_polygon_smartline.h/.cpp
+  - src/ved_core/operations/voc_polycurve.h/.cpp
+- TDViewOperationManager:
+  - VOC_POLYGON_SMARTLINE erzeugt TDVOCPolygonSmartline.
+  - VOC_POLYCURVE erzeugt TDVOCPolyCurve.
+  - GetAktiveOperationType erkennt beide Operationen.
+- MainWindow:
+  - Toolbar-Buttons Polygon und PolyCurve laufen jetzt ueber addCreateOperationAction.
+  - Buttons sind damit aktiv/checked und setzen die jeweilige Operation.
+- CMake:
+  - Neue Operation-Dateien in ved_core eingebunden.
+  - Neuer Test ved_core_polygon_polycurve_operation_tests eingebunden.
+
+Tests
+- Neuer Test tests/ved_core_polygon_polycurve_operation_tests.cpp:
+  - Offenes VOC_POLYGON_SMARTLINE erzeugt TDVecPolygon mit VECOBJ_POL und 3 Punkten.
+  - Rechts+Shift bei VOC_POLYGON_SMARTLINE haengt ersten Punkt am Ende an.
+  - VOC_POLYCURVE erzeugt TDVecPolyCurve mit VECOBJ_POLYCURVE.
+  - PolyCurve Defaults: Resolution 5, ShowControls true, ShowPolygon true.
+  - Ctrl+Linksklick erzeugt CPT_PRIME_QSPLINE-Control-Point.
+
+Verifikation
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 10/10 Tests bestanden.
+
+Hinweise
+- vec_math_base wurde in diesem Schritt nicht veraendert.
+- Die neuen Operationen bleiben in eigenen voc_-Dateien; Polygon und PolyCurve wurden nicht in bestehende Rectangle/Area-Operationen gepresst.

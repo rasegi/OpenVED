@@ -1,0 +1,204 @@
+Port Step 2.020 - cmdLockObject und zentraler Schutz gelockter Objekte
+Datum: 2026-05-16
+
+Ziel
+====
+
+- `cmdLockObject` nicht nur als Toolbar-Button anzeigen, sondern fachlich wirksam machen.
+- Gelockte Objekte sollen wie im alten VED gegen Bearbeitung geschuetzt sein.
+- Der Schutz darf nicht in jeder einzelnen UI-Operation einzeln nachgebaut werden.
+- Zentrale Modell- und Objektpfade muessen Locks respektieren.
+
+Borland-Referenz
+================
+
+Relevante Stellen:
+
+- `borland_ved/src/vedtest/main.cpp`
+  - `TfrmMain::cmdLockObjectClick`
+  - `SetLockResizeForSelectedObject`
+  - `SetLockPositionForSelectedObject`
+  - `Get_SelectMessage_FromVecModel`
+- `borland_ved/src/comp/main/vec_model.cpp`
+  - `SetLockResizeForSelectedObjects`
+  - `SetLockPositionForSelectedObjects`
+  - `GetLockResizeForSelectedObjects`
+  - `GetLockPositionForSelectedObjects`
+  - `MoveSelectedObjects`
+  - `MakeTempGroupFromSelected`
+  - `DeleteSelectedObjects`
+  - `DeleteObject`
+- `borland_ved/src/comp/vecobjects/vec_data.cpp`
+  - `DrawNodes`
+  - `MoveObject`
+  - `MoveNode`
+  - `ToScale`
+  - `Rotate`
+
+Borland-Verhalten
+=================
+
+- `cmdLockObjectClick` toggelt beide Locks fuer selektierte Objekte:
+  - Resize-Lock ueber `SetLockResizeForSelectedObjects`
+  - Position-Lock ueber `SetLockPositionForSelectedObjects`
+- Der Button ist aktiv, sobald Objekte selektiert sind.
+- Der Button ist gedrueckt, wenn mindestens eines der selektierten Objekte `LockResize` oder `LockPosition` gesetzt hat.
+- Nodes werden anders dargestellt:
+  - `DrawNode(..., bLock)` verwendet bei Lock den naechsten ImageList-Index.
+  - Resize-Nodes bekommen `GetLockResize()`.
+  - Mittelpunkt-/Move-Node bekommt `GetLockPosition()`.
+- Objektmethoden schuetzen fachlich:
+  - `LockPosition` blockiert Objektverschiebung und Rotation.
+  - `LockResize` blockiert Node-Move, Frame-Resize und Skalierung.
+- `MoveSelectedObjects` laeuft zentral ueber selektierte Objekte und ruft deren Move-Logik.
+- `MakeTempGroupFromSelected` nimmt nur Objekte ohne `LockPosition` in die temporaere Gruppe auf.
+
+Abweichung und Entscheidung im Qt-Port
+======================================
+
+Im alten Borland-Code sind `DeleteSelectedObjects` und `DeleteObject` nicht explizit gegen Lock abgesichert. Praktisch ist ein Lock-Button aber ein Schutzmechanismus; die Qt-Portierung behandelt ein gelocktes Objekt deshalb zentral als nicht loeschbar.
+
+Die Entscheidung fuer den Port:
+
+- `LockResize || LockPosition` bedeutet: Objekt ist geschuetzt.
+- Ein geschuetztes Objekt darf nicht geloescht werden.
+- Ein geschuetztes Objekt darf nicht durch Gruppieren/Resolve indirekt veraendert werden.
+- Objektgeometrie darf nur ueber die bestehenden Lock-Regeln veraendert werden:
+  - Position-Lock schuetzt Position/Rotation.
+  - Resize-Lock schuetzt Form/Nodes/Skalierung.
+
+Umsetzung: Toolbar und Modell-API
+=================================
+
+Dateien:
+
+- `src/app/MainWindow.h`
+- `src/app/MainWindow.cpp`
+- `src/ved_core/main/vec_model.h`
+- `src/ved_core/main/vec_model.cpp`
+
+Ergaenzt:
+
+- `TDVecModel::SetLockResizeForSelectedObjects(bool)`
+- `TDVecModel::SetLockPositionForSelectedObjects(bool)`
+- `TDVecModel::GetLockResizeForSelectedObjects() const`
+- `TDVecModel::GetLockPositionForSelectedObjects() const`
+
+`cmdLockObject`:
+
+- wird in der Modify-Toolbar mit `forbidden_sign.bmp` angebunden.
+- ist kein exklusiver VOM-Operation-Button.
+- toggelt beide Locks wie Borland:
+  - Resize-Lock wird auf `!GetLockResizeForSelectedObjects()` gesetzt.
+  - Position-Lock wird auf `!GetLockPositionForSelectedObjects()` gesetzt.
+- aktualisiert danach Canvas und Command-State.
+- piept, wenn keine selektierten Objekte bearbeitet wurden.
+
+Umsetzung: zentraler Schutz
+===========================
+
+Dateien:
+
+- `src/ved_core/vecobjects/vec_object.h`
+- `src/ved_core/vecobjects/vec_object.cpp`
+- `src/ved_core/main/vec_model.cpp`
+
+Ergaenzt:
+
+- `TDVecObject::GetLockObject() const`
+  - liefert `GetLockResize() || GetLockPosition()`.
+
+Zentral geschuetzte Modellpfade:
+
+- `TDVecModel::DeleteObject`
+  - gibt `false` zurueck, wenn das Zielobjekt gelockt ist.
+- `TDVecModel::DeleteSelectedObjects`
+  - ueberspringt gelockte selektierte Objekte.
+- `TDVecModel::MakeGroup`
+  - verwendet nur ungelockte selektierte Objekte.
+  - wenn danach weniger als zwei Objekte uebrig bleiben, wird keine Gruppe erzeugt.
+- `TDVecModel::ResolveGroup`
+  - geloescht/aufgeloest wird eine Gruppe nur, wenn die Gruppe selbst nicht gelockt ist.
+- `TDVecModel::ResolveAllSelectedGroups`
+  - ueberspringt gelockte Gruppen.
+
+Umsetzung: Objektmutatoren
+==========================
+
+Dateien:
+
+- `src/ved_core/vecobjects/vec_line.cpp`
+- `src/ved_core/vecobjects/vec_ellipse.cpp`
+- `src/ved_core/vecobjects/vec_polygon.cpp`
+- `src/ved_core/vecobjects/vec_polygon_area.cpp`
+- `src/ved_core/vecobjects/vec_polycurve.cpp`
+- `src/ved_core/vecobjects/vec_polycurve_area.cpp`
+- `src/ved_core/vecobjects/vec_bezier_curve.cpp`
+- `src/ved_core/vecobjects/vec_bspline.cpp`
+
+Korrigiert:
+
+- `TDVecLine::MoveBy`
+  - respektiert jetzt `LockPosition`.
+- `TDVecEllipse::MoveBy`
+  - respektiert jetzt `LockPosition`.
+- `TDVecLine::MoveNode(TDVecLineHitKind, TDMatPoint)`
+  - Start-/End-Node respektieren `LockResize`.
+  - Midpoint-Node nutzt `MoveBy` und respektiert dadurch `LockPosition`.
+- Insert/Delete/Change-Node-Methoden respektieren `LockResize`:
+  - `TDVecPolygon::InsertPoint/RemovePoint`
+  - `TDVecPolygonArea::InsertPoint/RemovePoint`
+  - `TDVecPolyCurve::ChangePointType/InsertPoint/RemovePoint`
+  - `TDVecPolyCurveArea::ChangePointType/InsertPoint/RemovePoint`
+  - `TDVecBezierCurve::InsertPoint/RemovePoint`
+  - `TDVecBSPLine::InsertPoint/RemovePoint`
+
+Node-Darstellung
+================
+
+Die Node-Darstellung musste nicht neu erfunden werden.
+
+Bereits vorhanden und passend:
+
+- Objektklassen rufen `DrawNode(..., GetLockResize())` fuer Resize-/Form-Nodes.
+- Objektklassen rufen `DrawNode(..., GetLockPosition())` fuer den Mittelpunkt.
+- `TDGraphicEngineQt::DrawNode` verwendet:
+  - `index = nodeType + (bLock ? 1 : 0)`
+
+Damit werden gelockte Nodes weiter ueber die alten Node-Bitmaps anders dargestellt.
+
+Tests
+=====
+
+Erweitert:
+
+- `tests/ved_core_model_tests.cpp`
+  - prueft Set/Get der Lock-Flags fuer selektierte Objekte.
+  - prueft, dass `DeleteObject` gelockte Objekte nicht loescht.
+  - prueft, dass `DeleteSelectedObjects` gelockte Objekte ueberspringt.
+- `tests/ved_core_line_tests.cpp`
+  - prueft, dass `LockPosition` `MoveBy` und Midpoint-Move blockiert.
+  - prueft, dass `LockResize` Endpunkt-Node-Move und Skalierung blockiert.
+
+Verifikation
+============
+
+Ausgefuehrt:
+
+- `cmake --build cmake-build-debug --target ved_core_line_tests`
+- `cmake --build cmake-build-debug --target ved_core_model_tests`
+- `cmake --build cmake-build-debug --target ved_qt_app`
+- `ctest --test-dir cmake-build-debug -R "ved_core_(line|model)_tests" --output-on-failure`
+- `ctest --test-dir cmake-build-debug --output-on-failure`
+
+Ergebnis:
+
+- 17/17 Tests bestanden.
+
+Bekannte bestehende Warnungen
+=============================
+
+- `vop_base.cpp` enthaelt alte `if(!this)`-Pruefungen.
+- `voc_line.cpp` hat einen bestehenden Switch-Hinweis zu `OSTATE_NEEDSELECTED`.
+- Diese Warnungen sind nicht neu durch diesen Step.
+

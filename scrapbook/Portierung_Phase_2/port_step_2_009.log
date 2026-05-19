@@ -1,0 +1,144 @@
+Step 2.009 - Create Kreis/Ellipse Operationen portiert
+Datum: 2026-05-14
+
+Ziel:
+- Alte VED Create-Operationen fuer Kreis und Ellipse in den Qt/ved_core-Port holen.
+- Toolbar-Buttons fuer diese Operationen aktivieren.
+- Erzeugte Kreis-/Ellipse-Objekte als echte Modellobjekte anlegen, nicht nur als Qt-Zeichnung.
+
+Portierte Operationen:
+- VOC_CIRCLE_MIDPOINT
+- VOC_CIRCLE_EDGE
+- VOC_CIRCLE_DIAMETER
+- VOC_ELLIPSE_ORTHOGONAL
+- VOC_ELLIPSE_MIDPOINT
+
+Neue/erweiterte Core-Basis:
+- TDMatCircle ergaenzt.
+- TDMatEllipse erweitert:
+  - CreateDiagonal
+  - CreateCircleDiagonal
+  - IsDiagonal
+- Geometrie-Funktionen ergaenzt:
+  - MatDistance2Point
+  - MatDistanceLinePoint
+  - MatEllipseMitte3PointReal
+  - MatCircleMitteReal
+  - MatCircleDurchReal
+  - MatCircleKanteReal
+- TDVecEllipse ergaenzt:
+  - Draw
+  - DrawNodes
+  - GetFrame/GetMidpoint
+  - Import/GetEllipse
+  - MoveBy
+  - einfacher HitTest fuer Auswahl/Loeschen
+
+Integration:
+- vop_manager erzeugt und erkennt die neuen Operationen.
+- MainWindow aktiviert die Circle-/Ellipse-Toolbar-Buttons.
+- Die vorhandene Create-Canvas-Weiterleitung wird fuer alle portierten Create-Operationen genutzt.
+- Model-HitTest und MoveSelectedObjects kennen jetzt TDVecEllipse.
+- VOM_MOVE_OBJECT zeichnet fuer selektierte Ellipsen auch einen Schatten und kann sie verschieben.
+
+Tests:
+- ved_core_circle_ellipse_operation_tests hinzugefuegt:
+  - Kreis Mittelpunkt
+  - Kreis Durchmesser
+  - Kreis 3 Punkte
+  - Ellipse Orthogonal
+  - Ellipse Mittelpunkt/Rotiert
+  - HitTest und MoveSelectedObjects fuer erzeugte Ellipse
+- Kompletter Testlauf:
+  - 7/7 Tests bestanden.
+
+Nachtrag - Korrektur der Portierungsrichtung:
+- VOM_MOVE_OBJECT darf kein Wissen ueber TDVecLine/TDVecEllipse enthalten.
+- Objektverhalten liegt wieder polymorph bei TDVecObject:
+  - Clone
+  - GetMidpoint
+  - HitTest/HitTestNode
+  - MoveBy
+- TDVecModel benutzt diese virtuellen Methoden statt objektklassenspezifischem dynamic_cast.
+- VOM_MOVE_OBJECT erzeugt Schatten nur noch ueber TDVecObject::Clone und TDVecObject::MoveBy.
+- Damit bleibt die alte VED-Philosophie erhalten: Operationen steuern den visuellen Ablauf, Objekte kennen ihr eigenes geometrisches Verhalten.
+- Build und kompletter Testlauf danach weiterhin 7/7 bestanden.
+
+Nachtrag - Mouse-State-Korrektur:
+- VOC_ELLIPSE_MIDPOINT war nicht VED-treu:
+  - Drag-Release nach dem zweiten Punkt wurde nicht abgeschlossen.
+  - Achsenvalidierung verwendete einen veralteten internen OK-Zustand statt beim zweiten Klick aus mPtBeg/mPtPoint zu pruefen.
+- OPMouseMove/OPMouseDown fuer VOC_ELLIPSE_MIDPOINT an alte Sequenz angepasst:
+  - mClick==2 + linke Taste im MouseMove setzt wieder mClick=3.
+  - MouseUp mit mClick==3 erzeugt die Ellipse.
+  - Der zweite Klick prueft die Achse direkt aus der aktuellen mPtPoint-Position.
+- Testsequenz fuer Kreis 3 Punkte und Ellipse Mittelpunkt auf echte Down/Up/Move-Folgen erweitert.
+- Build und kompletter Testlauf danach weiterhin 7/7 bestanden.
+
+Nachtrag - Abgleich gegen Original-VED fuer VOC_CIRCLE_EDGE/VOC_ELLIPSE_MIDPOINT:
+- VOC_CIRCLE_EDGE:
+  - Preview und finale Berechnung wieder getrennt wie im Original.
+  - Preview benutzt den bisher gespeicherten dritten Punkt und aktualisiert mPtEnd erst nach dem Zeichnen.
+  - MouseUp behandelt mClick==1, mClick==2 und mClick==3 separat wie Original-VED.
+  - Finale Kreisberechnung verwendet die Original-Reihenfolge: erster Punkt, aktueller Endpunkt, zweiter Fixpunkt.
+- VOC_ELLIPSE_MIDPOINT:
+  - Dritte-Klick-Sequenz als Test ergaenzt:
+    1. erster Klick = Mittelpunkt
+    2. MouseMove/zweiter Klick = erste Achse mit Winkel und erstem Radius
+    3. MouseMove/dritter Klick = zweiter Radius senkrecht zur ersten Achse
+  - Drag-Release-Sequenz bleibt ebenfalls getestet.
+- Build und kompletter Testlauf danach weiterhin 7/7 bestanden.
+
+Nachtrag - Ruecknahme der Sammeldatei:
+- Die nicht VED-treue Sammeldatei voc_circle_ellipse.h/cpp wurde entfernt.
+- Jede Operation liegt wieder in eigener Datei mit Originalnamen:
+  - voc_circle_midpoint.h/cpp
+  - voc_circle_diameter.h/cpp
+  - voc_circle_edge.h/cpp
+  - voc_ellipse_orthogonal.h/cpp
+  - voc_ellipse_midpoint.h/cpp
+- CMake und vop_manager wurden auf diese Einzeldateien umgestellt.
+- Tests fuer Drag-Operationen wurden an das Original-Verhalten angepasst: die alten Operationen berechnen im MouseMove mit dem vorherigen Punkt und speichern danach den aktuellen Punkt.
+- Build und kompletter Testlauf danach weiterhin 7/7 bestanden.
+
+Grenzen:
+- Ellipse-Node-Resize ist noch nicht portiert.
+- SelectMove-Drag fuer Ellipse-Koerper ist noch nicht voll auf TDVecEllipse erweitert; VOM_MOVE_OBJECT kann selektierte Ellipsen aber bewegen.
+- Datei-Serialisierung fuer Ellipsen ist in diesem Step noch nicht erweitert.
+
+Nachtrag - Mathlib wieder auf Borland-Formeln zurueckgefuehrt:
+- MatDistanceLinePoint war zwischenzeitlich mit einer modernen Punkt-Linien-Abstandsformel portiert.
+  Fuer VOC_ELLIPSE_MIDPOINT ist aber die alte VED-Rechnung fachlich relevant, weil der zweite Radius
+  ueber die damalige senkrechte Linienprojektion bestimmt wird.
+- MatEllipseMitte3PointReal ist wieder an den Originalablauf aus borland_ved/src/comp/mathlib/vec_math_base.cpp angeglichen:
+  - erster Radius = Abstand Mittelpunkt zu Achspunkt
+  - Winkel = -atan2(Achse - Mittelpunkt) in Grad
+  - bei horizontaler/vertikaler Achse direkte Differenzrechnung
+  - sonst MatDistanceLinePoint entlang der ersten Achse
+- MatCircleKanteReal ist ebenfalls wieder auf die Originalformel zurueckgesetzt, inklusive der alten
+  Punktreihenfolge/Horizontal-Kanten-Bedingung. Keine symmetrische Ersatzformel mehr.
+- Zusaetzlicher Test fuer rotierte VOC_ELLIPSE_MIDPOINT-Geometrie:
+  Mittelpunkt (0,0), Achspunkt (10,10), dritter Punkt (-5,5) ergibt Winkel -45 Grad,
+  xRadius sqrt(200), yRadius sqrt(50).
+- Build und kompletter Testlauf danach:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 7/7 Tests bestanden.
+
+Nachtrag - Ellipse-Draw wieder VED-treu statt Qt-DrawEllipse:
+- Ursache fuer die kaputte Affinitaet war nicht nur VOC_ELLIPSE_MIDPOINT, sondern der Qt-Zeichenpfad:
+  TDGraphicEngineQt::DrawEllipse hat bisher QPainter::drawEllipse mit rotate() benutzt.
+- Das alte VED zeichnet Ellipsen nicht so. TDGraphicEngineScreen::DrawEllipse wandelt erst in Screen-Koordinaten um,
+  ruft MatEllipseMidpoint auf und zeichnet dann eine Polyline.
+- MatEllipseMidpoint wurde aus der Borland-Mathlib in src/ved_core/mathlib/vec_math_base.cpp portiert:
+  - inklusive InsertPointToArray-Optimierung
+  - inklusive Radius-Tausch/Winkelregel fuer xRadius > yRadius
+  - inklusive Viertelpunkt-Erzeugung und Rotation per cosD/sinD
+- TDGraphicEngineQt::DrawEllipse nutzt jetzt dieselbe MatEllipseMidpoint-Punktfolge und zeichnet direkt die Polyline
+  in Screen-Koordinaten. Keine Qt-native Ellipse/Rotation mehr fuer VED-Ellipsen.
+- MatRound und TDMatEllipse::IsDiagonal wurden ebenfalls naeher an die Borland-Version angepasst, weil Rundung und
+  Diagonal-Erkennung Teil der alten Pixel-/Affinitaetsgeometrie sind.
+- Build und kompletter Testlauf danach:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 7/7 Tests bestanden.

@@ -1,0 +1,52 @@
+Port Step 020 - Zoom-Richtung und unendliches Grid korrigieren
+Datum: 2026-05-14
+
+Korrekturen
+-----------
+Zoom-Werkzeug:
+
+```text
+linke Maustaste  -> ZoomIn
+rechte Maustaste -> ZoomOut
+```
+
+Das war vorher vertauscht.
+
+Grid:
+
+Das Grid ist nicht mehr auf die A4-Workspace-Flaeche begrenzt. Wenn
+`cmdShowGrid` aktiv ist, wird jetzt der aktuelle sichtbare Real-View-Bereich
+aus der GraphicEngine gelesen und das Punkt-Grid ueber diesen Bereich
+gezeichnet. Damit bleibt Grid auch nach Pan/Scroll sichtbar.
+
+Technische Aenderungen
+----------------------
+`TDGraphicEngineQt` gibt die portierten Ranges aus `TDGraphicEngineScreenState`
+frei:
+
+```cpp
+const TDCoordinateSystem2D& GetViewRange() const;
+const TDCoordinateSystem2D& GetWorldSpaceRange() const;
+const TDCoordinateSystem2D& GetWorkSpaceRange() const;
+```
+
+`QVedWidget::drawGrid()` berechnet aus `GetViewRange()`:
+
+```text
+firstX/lastX
+firstY/lastY
+```
+
+und zeichnet Grid-Punkte fuer den ganzen sichtbaren Bereich.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

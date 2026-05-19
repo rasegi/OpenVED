@@ -1,0 +1,215 @@
+Port Step 01 - VED Toolbar-Skeleton mit Legacy-BMP-Ressourcen
+Datum: 2026-05-14
+
+Ziel
+----
+Die neue Qt-Anwendung soll optisch einen ersten Bezug zur alten `vedtest`
+bekommen. Dafuer wurden die alten Toolbar-BMPs als Ressourcen in das neue
+Qt-Projekt uebernommen und mehrere Toolbars ohne echte Funktionalitaet
+angelegt.
+
+Wichtig
+-------
+Der Legacy-Code unter `borland_ved` wurde nicht veraendert. Die BMP-Dateien
+wurden nur in den neuen Qt-Projektbereich kopiert.
+
+Kopierte Ressourcen
+-------------------
+Quelle:
+
+```text
+borland_ved/src/vedtest/resource/toolbar/*.bmp
+```
+
+Ziel:
+
+```text
+src/app/resources/toolbar/*.bmp
+```
+
+Anzahl kopierter BMP-Dateien:
+
+```text
+65
+```
+
+Beispiele:
+
+```text
+line.bmp
+polygon.bmp
+polycurve.bmp
+bspline.bmp
+circle.bmp
+ellipse_orthogonal.bmp
+rectangle_orthogonal.bmp
+select.bmp
+selectscale.bmp
+move_object.bmp
+delete_interactive.bmp
+rotate_object.bmp
+scale_object.bmp
+show_grid.bmp
+use_grid.bmp
+zoom.bmp
+```
+
+CMake-Aenderungen
+-----------------
+`CMakeLists.txt` wurde erweitert:
+
+- `file(GLOB VED_TOOLBAR_ICONS CONFIGURE_DEPENDS ...)`
+- `qt_add_resources(ved_qt_app "ved_resources" ...)`
+- Resource Prefix:
+
+```text
+:/ved/toolbar/<dateiname>.bmp
+```
+
+Damit werden die BMPs in das Qt-Binary eingebettet.
+
+Code-Aenderungen
+----------------
+Geaendert:
+
+```text
+src/app/MainWindow.h
+src/app/MainWindow.cpp
+```
+
+Neue Methoden:
+
+```cpp
+void createToolBars();
+QAction* addToolAction(QToolBar* toolbar, const QString& text, const QString& iconName, bool checkable = false);
+```
+
+Neue Toolbars
+-------------
+`File`
+
+- New
+- Open
+- Save
+- Cut
+- Copy
+- Paste
+- Print
+- Preview
+
+`Create`
+
+- Line
+- Polygon
+- PolyCurve
+- Bezier
+- B-Spline
+- Circle
+- Circle 3 Points
+- Circle Diameter
+- Ellipse Orthogonal
+- Ellipse Rotated
+- Rectangle Orthogonal
+- Rectangle Rotated
+- Round Rectangle
+- Text
+- Frame Text
+
+`Modify`
+
+- Select
+- Select/Scale
+- Move Object
+- Move Node
+- Move B-Spline Node
+- Insert Node
+- Delete Node
+- Delete Object
+- Rotate Object
+- Scale Object
+- Object Position/Size
+- Text Properties
+- Make Group
+- Resolve Group
+- Delete Permanently
+
+`View`
+
+- Zoom
+- Show Grid
+- Use Grid
+- Align Left
+- Align Center
+- Align Right
+- Align Top
+- Align Middle
+- Align Bottom
+
+Aktueller Funktionsumfang
+-------------------------
+Alle Toolbar-Aktionen sind Platzhalter.
+
+Beim Klick wird nur ein Statusbar-Hinweis angezeigt:
+
+```text
+<Action> is not implemented yet
+```
+
+Einige Aktionen sind bereits `checkable`, damit sie spaeter Werkzeugmodi wie
+im alten VED abbilden koennen.
+
+Ausgefuehrte Commands
+---------------------
+Ressourcenordner anlegen und BMPs kopieren:
+
+```bash
+mkdir -p src/app/resources/toolbar
+cp borland_ved/src/vedtest/resource/toolbar/*.bmp src/app/resources/toolbar/
+```
+
+CMake neu konfigurieren:
+
+```bash
+qt-cmake -S . -B build/qt
+```
+
+Build:
+
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Build-Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Resource-Verifikation
+---------------------
+Im generierten Qt-RCC wurden Beispielpfade gefunden:
+
+```text
+:/ved/toolbar/line.bmp
+:/ved/toolbar/select.bmp
+:/ved/toolbar/zoom.bmp
+```
+
+Git-Status nach Schritt
+-----------------------
+```text
+ M .gitignore
+?? CMakeLists.txt
+?? scrapbook/port_step_00.log
+?? src/
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Einen echten, aber noch leeren `QVedWidget` als zentrale Canvas-Klasse anlegen.
+Danach:
+
+1. Placeholder-`QLabel` durch `QVedWidget` ersetzen.
+2. `paintEvent()` fuer Hintergrund und spaeter Grid vorbereiten.
+3. Maus- und Keyboard-Events im Widget erfassen.
+4. Toolbar-Aktionen spaeter mit Werkzeugmodi verbinden.

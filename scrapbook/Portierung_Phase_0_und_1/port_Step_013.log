@@ -1,0 +1,212 @@
+Port Step 013 - Legacy-Operationen als Toolbar-Tooltips
+Datum: 2026-05-14
+
+Ziel
+----
+Die alte `vedtest`-App zeigt fuer Toolbar-Buttons im Tooltip den jeweiligen
+`Hint`-Text aus `main.dfm`, z.B. `VOC_LINE`, `VOM_DELETE_OBJECT`,
+`cmdShowGrid` oder `cmdMakeGroup`. Diese Texte sollen in der Qt-Portierung
+1:1 uebernommen werden.
+
+Legacy-Quelle
+-------------
+Referenz war die alte VCL-Testanwendung:
+
+```text
+borland_ved/src/vedtest/main.dfm
+borland_ved/src/vedtest/main.cpp
+borland_ved/src/comp/main/vec_maindef.h
+```
+
+`main.dfm` enthaelt die Toolbar-Hints. Diese Strings sind die massgebliche
+Quelle fuer die Tooltip-Texte. `main.cpp` und `vec_maindef.h` wurden nur zur
+Plausibilisierung gelesen, nicht zur Umbenennung der DFM-Hints.
+
+Geaenderte Dateien
+------------------
+```text
+src/app/MainWindow.h
+src/app/MainWindow.cpp
+scrapbook/port_Step_013.log
+```
+
+Aenderung
+---------
+`MainWindow::addToolAction()` trennt jetzt sichtbaren Button-Text und Tooltip:
+
+```cpp
+QAction* addToolAction(
+    QToolBar* toolbar,
+    const QString& text,
+    const QString& iconName,
+    bool checkable = false,
+    const QString& toolTip = QString());
+```
+
+Wenn kein separater Tooltip angegeben wird, wird kein eigener Tooltip-Text
+erfunden. Fuer portierte vedtest-Buttons wird der Tooltip explizit auf den
+alten `Hint`-String aus `main.dfm` gesetzt.
+
+Create-Command-Auswahl
+----------------------
+Die mit `VOC_*` bezeichneten Toolbar-Buttons sind Create-Commands. In der
+alten vedtest-App liegen diese Buttons in einer gemeinsamen Toggle-Gruppe,
+sodass gleichzeitig nur ein Create-Command aktiv sein kann.
+
+Die Qt-Portierung bildet das mit einer exklusiven `QActionGroup` fuer die
+Create-Toolbar nach:
+
+```cpp
+auto* createActionGroup = new QActionGroup(createToolbar);
+createActionGroup->setExclusive(true);
+```
+
+Alle checkbaren Create-Actions werden dieser Gruppe hinzugefuegt.
+
+Modify-Command-Auswahl
+----------------------
+Die mit `VOM_*` bezeichneten Toolbar-Buttons sind Modify-Commands und werden
+ebenfalls exklusiv behandelt. Die Qt-Portierung nutzt dafuer eine eigene
+`QActionGroup` in der Modify-Toolbar:
+
+```cpp
+auto* modifyActionGroup = new QActionGroup(modifyToolbar);
+modifyActionGroup->setExclusive(true);
+```
+
+In dieser Gruppe liegen die Modify-Operationen wie Select, Select/Scale, Move,
+Insert/Delete Node/Object, Rotate, Scale und VecText. Nicht-operationale
+Buttons wie Gruppieren, Grid-Schalter, Delete Permanently oder Alignment sind
+nicht Teil dieser exklusiven Operation-Auswahl.
+
+Uebernommene Operation-Tooltips
+-------------------------------
+Create-Toolbar:
+
+```text
+VOC_LINE
+VOC_POLYGON_SMARTLINE
+VOC_POLYCURVE
+VOC_BEZIERCURVE_CONTROLPOINT
+VOC_BSPLINE_CONTROLPOINT
+VOC_CIRCLE_MIDPOINT
+VOC_CIRCLE_EDGE
+VOC_CIRCLE_DIAMETER
+VOC_ELLIPSE_ORTHOGONAL
+VOC_ELLIPSE_MIDPOINT
+VOC_RECTANGLE_NOTROTATED
+VOC_RECTANGLE_ROTATED
+VOC_ROUND_RECTANGLE_NOTROTATED
+cmdVOCVecText
+cmdVOCVecFrameTextEmpty
+```
+
+Modify-/View-Toolbar:
+
+```text
+VOM_SELECTMOVE_OBJECTNODE
+VOM_SELECTMOVE_OBJECT_SCALE_FRAME
+VOM_MOVE_OBJECT
+VOM_MOVE_NODE
+VOM_MOVE_BSPLINE_CONTROLPOINT
+VOM_INSERT_NODE
+VOM_DELETE_NODE
+VOM_DELETE_OBJECT
+VOM_CHANGE_EDGE_ROUND_NODE
+VOM_ROTATE_OBJECT_ACTIVEPOINT
+VOM_SCALE_OBJECT_3POINT
+VOM_MODIFY_CURVE_ATTRIBUTE
+cmdVOMVecText
+cmdMakeGroup
+cmdResolveGroup
+cmdLockObject
+VOP_ZOOM_IO
+cmdShowGrid
+cmdLockGrid
+```
+
+BMP-Ressourcen
+--------------
+Die Qt-Toolbar referenziert weiterhin die direkt aus `vedtest` uebernommenen
+BMP-Dateien unter:
+
+```text
+src/app/resources/toolbar/*.bmp
+```
+
+Die Icons werden mit ihren alten BMP-Dateinamen aus den uebernommenen
+Ressourcen geladen, z.B. `line.bmp`, `polygon.bmp`, `show_grid.bmp`,
+`use_grid.bmp`.
+
+Ausnahme Bezier:
+
+```text
+cmdVOCBezierCurve
+Hint:    VOC_BEZIERCURVE_CONTROLPOINT
+Caption: bz
+```
+
+Der alte vedtest-Button `cmdVOCBezierCurve` hat in `main.dfm` kein
+`Glyph.Data` und referenziert keine BMP-Datei. Er nutzt stattdessen die
+Caption `bz`. Die Qt-Portierung verwendet deshalb fuer
+`VOC_BEZIERCURVE_CONTROLPOINT` kein `change_bspline_attr.bmp`, sondern einen
+checkbaren Textbutton `bz`. `change_bspline_attr.bmp` bleibt
+`VOM_MODIFY_CURVE_ATTRIBUTE` vorbehalten.
+
+Nachtrag Select/Scale:
+
+```text
+borland_ved/src/vedtest/resource/bitmap/selectscale0.bmp
+borland_ved/src/vedtest/resource/bitmap/selectscale1.bmp
+```
+
+wurden nach:
+
+```text
+src/app/resources/toolbar/selectscale0.bmp
+src/app/resources/toolbar/selectscale1.bmp
+```
+
+kopiert. Der Qt-Button `Select/Scale` nutzt `selectscale0.bmp` als normales
+Icon und den Tooltip `VOM_SELECTMOVE_OBJECT_SCALE_FRAME`.
+
+Nachtrag fehlende VOM-Buttons:
+
+```text
+VOM_CHANGE_EDGE_ROUND_NODE
+VOM_MODIFY_CURVE_ATTRIBUTE
+```
+
+wurden in die Qt-Modify-Toolbar aufgenommen und der exklusiven Modify-
+`QActionGroup` hinzugefuegt. `Select/Scale`
+(`VOM_SELECTMOVE_OBJECT_SCALE_FRAME`) wurde in der Qt-Toolbar an die alte
+Position direkt vor `Delete Permanently` verschoben.
+
+Nachtrag Lock Object:
+
+```text
+cmdLockObject
+```
+
+wurde mit `forbidden_sign.bmp` in die Qt-Modify-Toolbar aufgenommen. Der alte
+DFM-Button hat keinen `Hint`; deshalb verwendet die Qt-Portierung den
+Komponentennamen `cmdLockObject` als Tooltip. Der Button ist checkbar, aber
+nicht Teil der exklusiven VOM-Operation-Gruppe.
+
+Hinweise
+--------
+Einige Qt-Buttons haben derzeit kein direktes `Hint`-Pendant in der gelesenen
+vedtest-Toolbar, z.B. Dateiaktionen oder Alignment-Buttons. Fuer diese Buttons
+wurde in diesem Schritt kein vedtest-Hint erfunden.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

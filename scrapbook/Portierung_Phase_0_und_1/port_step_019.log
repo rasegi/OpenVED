@@ -1,0 +1,110 @@
+Port Step 019 - VED-View-Verhalten fuer Achsen/Grid/Zoom-Werkzeug korrigieren
+Datum: 2026-05-14
+
+Ausloeser
+---------
+In der alten VED-View waren X-/Y-Achse sichtbar. Bei `cmdShowGrid` wurden
+Grid-Punkte sichtbar. Das Zoom-Werkzeug (`VOP_ZOOM_INOUT`) zoomte per linker
+und rechter Maustaste um die aktuelle Mausposition. In der Qt-View war das
+noch nicht korrekt sichtbar/benutzbar.
+
+Legacy-Referenzen
+-----------------
+Untersucht:
+
+```text
+borland_ved/src/comp/vcl/vcl_vec_view.cpp
+borland_ved/src/comp/operations/vop_zoom_inout.cpp
+borland_ved/src/vedtest/main.cpp
+```
+
+Relevante alte Stellen:
+
+```text
+TSCVecView::WM_PAINT/Zeichenlogik:
+- mpGE->DrawGrid(...)
+- mpGE->DrawAuxLineX/Y(...)
+
+TDVOPZoomInOut::OPMouseDown:
+- Mausposition wird ueber RealToXPos/RealToYPos in einen Zoom-Punkt umgesetzt
+- danach SetZoom(newZoom, &PointZoom)
+
+TfrmMain::cmdShowGridClick:
+- ShowGrid(cmdShowGrid->Down)
+
+TfrmMain::cmdLockGridClick:
+- SetGridLock(cmdLockGrid->Down)
+```
+
+Korrekturen
+-----------
+`QVedWidget` zeichnet jetzt immer die X-/Y-Achse:
+
+```cpp
+graphicEngine_.DrawAuxLineX(0);
+graphicEngine_.DrawAuxLineY(0);
+```
+
+`cmdShowGrid` zeichnet wieder Punkt-Grid mit VED-nahem Default:
+
+```text
+GridSize      = 10000
+GridSubDiv    = 10
+GridResLimit  = 0
+```
+
+`GridResLimit` ist im aktuellen Qt-Zwischenstand bewusst `0`, damit das Grid
+im Default-View sichtbar ist. Die alte VCL-View nutzte `3`, hatte aber auch
+andere Start-/Scroll-/Paint-Rahmenbedingungen.
+
+Zoom-Werkzeug
+-------------
+`QVedWidget` besitzt jetzt `zoomAtScreenPoint(...)`. Diese Routine:
+
+1. merkt die Real-Koordinate unter der Maus
+2. setzt den neuen Zoom in `TDGraphicEngineQt`
+3. korrigiert PanX/PanY so, dass dieselbe Real-Koordinate wieder unter der
+   Mausposition liegt
+
+Damit zoomt die View nicht mehr stumpf um den Ursprung/Viewport-Anfang, sondern
+wie VED um die Mausposition.
+
+Aktuelles Verhalten:
+
+```text
+VOP_ZOOM_INOUT aktiv + linke Maustaste  -> ZoomOut
+VOP_ZOOM_INOUT aktiv + rechte Maustaste -> ZoomIn
+Mausrad hoch/runter                     -> Zoom um Mausposition
+rechte Maustaste ohne Zoom-Werkzeug     -> Pan
+mittlere Maustaste                      -> Pan
+```
+
+Toolbar
+-------
+Die Tooltip-/Status-Bezeichnung des Zoom-Werkzeugs wurde auf den alten Enum-
+Namen korrigiert:
+
+```text
+VOP_ZOOM_INOUT
+```
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die verbleibenden Unterschiede zur alten View liegen jetzt vor allem in:
+
+1. echter Scrollbar-Kommunikation aus `vcl_vec_view.cpp`
+2. genauer Initial-Range-/Margin-Strategie der alten VCL-View
+3. GridLock-Snapping in MouseDown/MouseMove/MouseUp, sobald die alten
+   Operationen an `TDVecEditCad` aktiv sind

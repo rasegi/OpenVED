@@ -1,0 +1,61 @@
+Port Step 011 - Toolbars initial horizontal untereinander anordnen
+Datum: 2026-05-14
+
+Ziel
+----
+Die Toolbars sollen beim Start nicht alle nebeneinander in einer einzigen
+Zeile liegen, sondern horizontal ausgerichtet bleiben und als eigene Zeilen
+untereinander im oberen Toolbar-Bereich erscheinen.
+
+Geaenderte Datei
+----------------
+```text
+src/app/MainWindow.cpp
+```
+
+Aenderung
+---------
+Vorher wurden die Toolbars mit `addToolBar(QString)` erzeugt. Qt entscheidet
+dabei selbst, ob weitere Toolbars in derselben Zeile Platz finden.
+
+Jetzt werden die Toolbars explizit erzeugt und im oberen Toolbar-Bereich
+eingefuegt:
+
+```cpp
+auto* fileToolbar = new QToolBar(QStringLiteral("File"), this);
+addToolBar(Qt::TopToolBarArea, fileToolbar);
+```
+
+Zwischen den Toolbar-Gruppen wird ein Toolbar-Break gesetzt:
+
+```cpp
+addToolBarBreak(Qt::TopToolBarArea);
+```
+
+Aktuelle initiale Anordnung
+---------------------------
+```text
+File    Toolbar  (horizontal)
+Create  Toolbar  (horizontal)
+Modify  Toolbar  (horizontal)
+View    Toolbar  (horizontal)
+```
+
+Alle liegen initial untereinander im `Qt::TopToolBarArea`.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis
+--------
+```text
+[100%] Built target ved_qt_app
+```
+
+Hinweis
+-------
+Die Toolbars sind weiterhin normale Qt-Toolbars und koennen vom Benutzer spaeter
+umgeordnet oder gedockt werden, sofern Qt/Plattform das erlaubt.

@@ -1,0 +1,147 @@
+Port Step 012 - Toolbar- und Fensterlayout mit QSettings speichern
+Datum: 2026-05-14
+
+Ziel
+----
+Wenn der Benutzer Toolbars verschiebt, andockt oder das Hauptfenster veraendert,
+soll die App diese Anordnung beim Beenden speichern und beim naechsten Start
+wiederherstellen.
+
+Qt Best Practice
+----------------
+Fuer `QMainWindow` ist die uebliche Qt-Loesung:
+
+- `QMainWindow::saveGeometry()` / `restoreGeometry()`
+- `QMainWindow::saveState()` / `restoreState()`
+- Persistenz ueber `QSettings`
+
+Wichtig: Toolbars brauchen stabile `objectName`-Werte. Diese existieren bereits:
+
+```text
+FileToolbar
+CreateToolbar
+ModifyToolbar
+ViewToolbar
+```
+
+Geaenderte Dateien
+------------------
+```text
+src/app/main.cpp
+src/app/MainWindow.h
+src/app/MainWindow.cpp
+```
+
+App-Identitaet fuer QSettings
+-----------------------------
+In `main.cpp` gesetzt:
+
+```cpp
+QCoreApplication::setOrganizationName(QStringLiteral("VED"));
+QCoreApplication::setApplicationName(QStringLiteral("VED Qt Port"));
+```
+
+Diese Werte bestimmen bei `QSettings` den Speicherort bzw. Dateinamen.
+
+Neue MainWindow-Methoden
+------------------------
+```cpp
+void readSettings();
+void writeSettings() const;
+void resetWindowLayout();
+void closeEvent(QCloseEvent* event) override;
+```
+
+Verwendete Settings-Schluessel
+------------------------------
+```text
+mainWindow/geometry
+mainWindow/state
+```
+
+Gespeichert wird:
+
+- Fensterposition und Fenstergroesse ueber `saveGeometry()`
+- Toolbar-/Docking-Zustand ueber `saveState(1)`
+
+Die Version `1` ist bewusst gesetzt:
+
+```cpp
+constexpr int kMainWindowStateVersion = 1;
+```
+
+Wenn wir spaeter Toolbars/Docks strukturell umbauen, kann diese Version erhoeht
+werden, damit alte Layoutdaten nicht falsch wiederhergestellt werden.
+
+Reset-Funktion
+--------------
+Der Menuepunkt:
+
+```text
+View > Reset View
+```
+
+ist jetzt aktiv und setzt das Toolbar-Layout auf den Default-Zustand zurueck.
+Dabei wird der gespeicherte Toolbar-State aus `QSettings` entfernt:
+
+```cpp
+settings.remove("mainWindow/state");
+```
+
+Speicherort der Informationen
+-----------------------------
+Die App nutzt `QSettings` im nativen Qt-Format.
+
+Aktuelle App-Werte:
+
+```text
+OrganizationName: VED
+ApplicationName:  VED Qt Port
+```
+
+Auf diesem macOS-System meldet Qt fuer Config/Preferences:
+
+```text
+/Users/lukasrasegi/Library/Preferences
+```
+
+Erwarteter macOS-Dateipfad fuer diese App:
+
+```text
+/Users/lukasrasegi/Library/Preferences/com.ved.VED Qt Port.plist
+```
+
+Hinweis: Qt erzeugt diese Datei erst, wenn Settings geschrieben wurden, also
+typisch beim ersten Beenden der App.
+
+Auf anderen Plattformen verwendet `QSettings` die nativen Speicherorte:
+
+Windows:
+
+```text
+Registry unter HKEY_CURRENT_USER\Software\VED\VED Qt Port
+```
+
+Linux/Unix:
+
+```text
+~/.config/VED/VED Qt Port.conf
+```
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+`QVedWidget` als echte zentrale Canvas-Klasse anlegen und das bisherige
+Placeholder-Label ersetzen. Danach koennen wir `paintEvent()`, Maus-Events und
+Keyboard-Events sauber vorbereiten.

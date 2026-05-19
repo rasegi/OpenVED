@@ -1,0 +1,134 @@
+Port Step 029 - Minimale Core-Paint-Kette an QVedWidget anbinden
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach den View-Schritten `port_step_023` bis `port_step_028` war die Qt-View
+fuer Grid, Achsen, Zoom, Pan und Scrollbars stabil genug. Der naechste
+sinnvolle Schritt war laut Log:
+
+```text
+TDVecEdit, TDVecModel und minimale TDVecObject-Basisschnittstelle portieren,
+damit TDVecEditCad::PaintContentOnView() aus legacy_pending in den echten
+ved_core-Build verschoben und an QVedWidget::setPaintContentCallback()
+angeschlossen werden kann.
+```
+
+Kopierte Legacy-Dateien
+-----------------------
+Als Ausgangspunkt wurden Dateien aus `borland_ved/src/comp` in die neue
+Struktur kopiert:
+
+```text
+main/vec_edit.h
+main/vec_edit.cpp
+main/vec_model.h
+vecobjects/vec_data.h
+main/legacy_pending/vec_edit_cad.h -> main/vec_edit_cad.h
+main/legacy_pending/vec_edit_cad.cpp -> main/vec_edit_cad.cpp
+```
+
+Die Kopien wurden danach bewusst auf eine kompilierbare PaintContent-Scheibe
+reduziert. Die vollstaendigen Legacy-Kopien bleiben weiterhin unter:
+
+```text
+src/ved_core/main/legacy_pending/vec_edit_cad.h
+src/ved_core/main/legacy_pending/vec_edit_cad.cpp
+```
+
+Neue/aktive Core-Scheibe
+------------------------
+Aktuell im `ved_core`-Build:
+
+```text
+src/ved_core/main/vec_edit.h
+src/ved_core/main/vec_edit.cpp
+src/ved_core/main/vec_edit_cad.h
+src/ved_core/main/vec_edit_cad.cpp
+src/ved_core/main/vec_model.h
+src/ved_core/main/vec_model.cpp
+src/ved_core/vecobjects/vec_data.h
+src/ved_core/vecobjects/vec_data.cpp
+```
+
+Minimal implementiert:
+
+```text
+TDVecEdit
+TDVecModel
+TDVecObject
+TDVecLine
+TDVecEditCad
+```
+
+Fuer `PaintContentOnView()` notwendige Methoden:
+
+```text
+TDVecModel::CountObjects()
+TDVecModel::GetObject()
+TDVecModel::AppendObject()
+TDVecObject::GetFrame()
+TDVecObject::Draw()
+TDVecObject::GetSelect()
+TDVecObject::DrawNodes()
+TDVecObject::DrawFrame()
+TDVecEditCad::PaintContentOnView()
+```
+
+Qt-Anbindung
+------------
+`MainWindow` besitzt jetzt:
+
+```cpp
+std::unique_ptr<TDVecModel> model_;
+std::unique_ptr<TDVecEditCad> editor_;
+```
+
+Initialisierung:
+
+```cpp
+editor_->SetVecModel(model_.get());
+editor_->RegisterViewInterface(canvas_->viewInterface());
+canvas_->setPaintContentCallback([this](TDVecViewInterfaceBase* view) {
+    if (editor_) {
+        editor_->PaintContentOnView(view);
+    }
+});
+```
+
+Damit ruft `QVedWidget::paintEvent()` jetzt die alte Editor-Paint-Schicht ueber
+das ViewInterface auf. Die Qt-GraphicEngine ist dabei die konkrete
+`TDGraphicEngine`-Implementierung.
+
+Grenze
+------
+Das Modell ist aktuell noch leer. Es gibt noch kein Dokument-Laden und keine
+Create-/Modify-Operationen, die Objekte erzeugen. Deshalb ist visuell noch nur
+Grid/Achsen/View-Basis zu sehen. Der technische Paint-Pfad fuer VED-Objekte ist
+aber jetzt vorhanden und kompilierbar.
+
+Build
+-----
+```bash
+cmake -S . -B build/qt
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Ein erster echter Objektfluss:
+
+1. Eine minimale Dokument-/Model-Testinitialisierung oder einen sehr kleinen
+   Importpfad schaffen, der `TDVecLine` in `TDVecModel` legt.
+2. Danach `VOC_LINE` oder ein erster Create-Operation-Pfad an
+   `TDVecEditCad` anschliessen, sodass Objekte nicht nur programmatisch,
+   sondern ueber View-Events entstehen.
+3. Danach `GridLock` in den MouseDown/MouseMove-Koordinatenpfad einbauen,
+   weil das Snapping erst mit aktiven Operationen sinnvoll getestet werden
+   kann.

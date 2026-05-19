@@ -1,0 +1,143 @@
+Port Step 2_005 - VOM_SELECT_MOVE_NODE_OBJECT minimal fuer Line
+Datum: 2026-05-14
+
+Ziel
+----
+Die alte VED-Bedienlogik fuer direkte Bearbeitung starten:
+
+- Select-Operation ist nicht nur Auswahl.
+- Bei Linksklick auf ein Objekt und gedrueckt gehaltener Maustaste kann das
+  Objekt verschoben werden.
+- Waehrend Drag wird ein Schatten/Outline bewegt.
+- Erst bei MouseUp wird das echte Objekt im Modell veraendert.
+
+Abgrenzung zu `VOM_MOVE_OBJECT`
+-------------------------------
+Alte VED hat zwei verschiedene Move-Modelle:
+
+- `VOM_SELECT_MOVE_NODE_OBJECT`:
+  - direkte Bearbeitung aus Select heraus
+  - MouseDown auf Objekt
+  - Drag mit linker Maustaste
+  - MouseUp schreibt Aenderung
+
+- `VOM_MOVE_OBJECT`:
+  - separater Move-Befehl
+  - Objekt ist bereits selektiert
+  - Operation wird aktiviert
+  - Schatten folgt dem Cursor
+  - Linksklick beendet/platziert
+
+Step 005 portiert bewusst zuerst die direkte Bearbeitung, weil das fuer das
+Minimal-VED die natuerlichere und fachlich wichtigere Bedienung ist.
+
+Geaenderte Dateien
+------------------
+CMakeLists.txt
+src/app/MainWindow.cpp
+src/app/QVedWidget.cpp
+src/ved_core/operations/vop_manager.cpp
+src/ved_core/operations/vom_select_move_node_object.h
+src/ved_core/operations/vom_select_move_node_object.cpp
+tests/ved_core_select_move_operation_tests.cpp
+scrapbook/port_step_2_005.log
+
+Neue Operation
+--------------
+`TDVOMSelectMoveNodeObject`
+
+Aktueller Minimalumfang:
+
+- Konstruktor setzt `OSTATE_RUNNING`.
+- Konstruktor setzt `VECVIEW_CURSOR_DEFAULT`, wie alte Select/Modify-Operation.
+- MouseDown links sucht Objekt ueber die in Step 004 korrigierte
+  Pixel-Toleranzlogik.
+- Treffer ohne Shift:
+  - selektiert genau dieses Objekt
+  - wenn Treffer nicht auf Node liegt, wird Move-Object vorbereitet
+- Treffer mit Shift:
+  - ergaenzt Auswahl
+  - startet keinen Move
+- Kein Treffer:
+  - startet Area-Select/Lasso wie bisher
+- MouseMove mit linker Taste:
+  - wartet bis Bewegung ueber MouseTolerance + 2 Pixel liegt, analog alte VED
+  - erzeugt danach eine temporaere `TDVecLine` als Outline-Schatten
+  - ruft `TmpAppend(tempLine, true)` auf
+  - setzt Cursor auf `VECVIEW_DOCK`
+- MouseUp links:
+  - wenn ein Move-Schatten aktiv war, wird die echte selektierte Linie mit dem
+    Gesamt-Delta verschoben
+  - danach `TmpClear()`, Cursor zurueck auf Default, `ViewsRefresh()`
+  - wenn Area-Select aktiv war, wird per `SelectObjectsInArea()` selektiert
+
+Qt-Adapter
+----------
+Die Select-Toolbar startet jetzt:
+
+`editor_->SetOperation(VOM_SELECT_MOVE_NODE_OBJECT)`
+
+Der Canvas bleibt im `InteractionMode::SelectObject`, damit die vorhandene
+Mouse-Weiterleitung an die Operation-Pipeline genutzt wird.
+
+`QVedWidget` behandelt `VECVIEW_DOCK` jetzt als `Qt::ClosedHandCursor`.
+
+Das Lasso-Overlay des Qt-Adapters wird nicht gezeichnet, solange der aktive
+Cursor `VECVIEW_DOCK` ist. Damit ueberlagert es den Move-Schatten nicht.
+
+Tests
+-----
+Neu hinzugefuegt:
+
+tests/ved_core_select_move_operation_tests.cpp
+
+Geprueft wird:
+
+- `SetOperation(VOM_SELECT_MOVE_NODE_OBJECT)` aktiviert die neue Operation.
+- MouseDown auf Linie selektiert die Linie.
+- MouseMove erzeugt noch keine echte Modell-Aenderung.
+- MouseUp schreibt das Move-Delta ins echte Line-Objekt.
+- Click ohne Drag veraendert die Linie nicht.
+- Area-Select funktioniert weiterhin in derselben Operation.
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+4/4 Tests bestanden:
+
+- `ved_core_line_tests`
+- `ved_core_model_tests`
+- `ved_core_select_operation_tests`
+- `ved_core_select_move_operation_tests`
+
+Bekannte Grenzen
+----------------
+Noch nicht Bestandteil von Step 005:
+
+- Node-Move im selben `VOM_SELECT_MOVE_NODE_OBJECT`
+- echtes Group-Move mehrerer selektierter Objekte
+- `VOM_MOVE_OBJECT` als separater Befehl
+- manuelle GUI-Verifikation des Schattenverhaltens
+
+Naechster Schritt
+-----------------
+`port_step_2_006`: Node-Move fuer Line innerhalb
+`VOM_SELECT_MOVE_NODE_OBJECT`.
+
+Geplante Inhalte:
+
+- Start-/End-Node ueber Pixel-Toleranz treffen
+- temporaere Line mit geaendertem Node als Outline zeigen
+- echte Node-Koordinate erst bei MouseUp schreiben
+- GridLock bleibt ueber Operation-Koordinate aktiv

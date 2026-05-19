@@ -1,0 +1,98 @@
+Port Step 021 - Scrollbars an QVedWidget anbinden
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Die alte VED-View hatte sichtbare Scrollbars. Gerade bei ZoomIn sind sie ein
+zentraler Teil der Bedienung. In der Qt-View fehlten sie bisher komplett.
+
+Legacy-Referenz
+---------------
+Untersucht:
+
+```text
+borland_ved/src/comp/vcl/vcl_vec_view.cpp
+```
+
+Relevante alte Methoden:
+
+```text
+TSCVecView::UpdateScrollBars()
+TSCVecView::DoScroll(...)
+TSCVecView::WMHScroll(...)
+TSCVecView::WMVScroll(...)
+TSCVecView::AdjustPanX()
+TSCVecView::AdjustPanY()
+```
+
+Altes Prinzip:
+
+```text
+Scrollbar-Position = mpGE->GetPanX/Y()
+Scrollbar-Page     = ClientRect-Breite/Hoehe
+Scrollbar-Range    = gesamte sicht-/scrollbare Flaeche in Pixeln
+Scroll-Aktion      = mpGE->SetPanX/Y(...)
+```
+
+Qt-Umsetzung
+------------
+`QVedWidget` besitzt jetzt echte Kind-Scrollbars:
+
+```cpp
+QScrollBar* horizontalScrollBar_;
+QScrollBar* verticalScrollBar_;
+```
+
+Layout:
+
+```text
+horizontal unten
+vertical rechts
+Canvas = Widget-Rechteck minus Scrollbar-Breite/Hoehe
+```
+
+Die Canvas-Groesse wird an `TDGraphicEngineQt::SetDeviceMetrics(...)`
+weitergegeben. Damit beziehen sich ViewRange, Grid, Achsen, Zoom und Pan auf
+den realen Zeichenbereich ohne Scrollbar-Flächen.
+
+Synchronisation
+---------------
+`updateScrollBars()` berechnet aus:
+
+```text
+TDGraphicEngineQt::GetViewRange()
+TDGraphicEngineQt::GetWorldSpaceRange()
+TDGraphicEngineQt::GetPanX/Y()
+Canvas-Breite/Hoehe
+```
+
+die Scrollbar-Ranges, PageSteps, SingleSteps und Positionen.
+
+Bei Scrollbar-Bewegung:
+
+```cpp
+graphicEngine_.SetPanX(horizontalScrollBar_->value());
+graphicEngine_.SetPanY(verticalScrollBar_->value());
+```
+
+Bei Zoom/Pan per Maus werden die Scrollbars danach aktualisiert.
+
+Grenze
+------
+Das ist die erste Qt-Scrollbar-Anbindung nach altem Prinzip. Die exakte alte
+`DoScroll(...)`-Semantik fuer Line/Page/Overlap ist noch nicht komplett
+nachgezogen, weil Qt-Scrollbars ihre Standard-Line/Page-Events bereits liefern.
+Falls das Bediengefuehl abweicht, muss `SCROLLS_PER_PAGE` /
+`PAGE_SCROLL_OVERLAP` aus VED separat uebernommen werden.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

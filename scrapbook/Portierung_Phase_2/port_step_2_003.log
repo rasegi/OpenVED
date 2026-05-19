@@ -1,0 +1,148 @@
+Port Step 2_003 - Modell-Selektion und Objekt-/Node-Suche
+Datum: 2026-05-14
+
+Ziel
+----
+`TDVecModel` so erweitern, dass die naechste echte Select-Operation nicht im
+Qt-Widget implementiert werden muss. Das Modell kann jetzt Linienobjekte und
+Liniennodes ueber Real-Koordinaten plus Mouse-Tolerance finden, Objekte
+selektieren und loeschen.
+
+Geaenderte Dateien
+------------------
+CMakeLists.txt
+src/app/QVedWidget.cpp
+src/ved_core/main/vec_model.h
+src/ved_core/main/vec_model.cpp
+tests/ved_core_model_tests.cpp
+scrapbook/port_step_2_003.log
+
+Fachliche Aenderungen
+---------------------
+Neuer Core-Typ:
+
+- `TDVecModelHitResult`
+  - `objectIndex`
+  - `object`
+  - `lineHit`
+  - `IsHit()`
+  - `IsNodeHit()`
+
+Neue `TDVecModel`-Methoden:
+
+- `FindObjectAt(point, tolerance)`
+- `FindNodeAt(point, tolerance)`
+- `SelectObject(index)`
+- `SelectOnlyObject(index)`
+- `GetSelectedObject()`
+- `GetSelectedObjectIndex()`
+- `CountSelectedObjects()`
+- `DeleteObject(index)`
+- `DeleteSelectedObjects()`
+
+Verhalten
+---------
+`FindObjectAt()` und `FindNodeAt()` laufen rueckwaerts durch die Objektliste.
+Das zuletzt eingefuegte Objekt gewinnt damit bei ueberlappenden Treffern. Das
+entspricht der ueblichen Zeichen-/Treffererwartung fuer spaeteres Topmost-
+Verhalten.
+
+Die Suche kennt aktuell nur `TDVecLine`. Andere Objekttypen werden bewusst
+ignoriert, weil dieser Durchstich zuerst Line vollstaendig machen soll.
+
+Mouse-Tolerance / GridLock
+--------------------------
+Mouse-Tolerance ist kein Modellzustand. Das Modell bekommt sie als Parameter:
+
+`FindObjectAt(point, tolerance)`
+`FindNodeAt(point, tolerance)`
+
+GridLock ist ebenfalls kein Modellzustand. Die View muss die Real-Koordinate
+vor der Operation/Modellsuche snappen.
+
+Geaendert:
+
+- `QVedWidget::operationPoint()` ruft jetzt immer `snapPointToGrid()` auf.
+- `snapPointToGrid()` ist bei ausgeschaltetem GridLock ein No-op.
+
+Damit gilt die alte VED-Semantik wieder als Ziel:
+
+- sichtbarer Mouse-Toleranzkreis
+- Operationskoordinate
+- spaetere Hit-Test-Koordinate
+
+liegen bei aktivem GridLock auf demselben Gridpunkt.
+
+Test / Verifikation
+-------------------
+Neu hinzugefuegt:
+
+tests/ved_core_model_tests.cpp
+
+Geprueft wird:
+
+- Append von zwei `TDVecLine`
+- `FindObjectAt()` fuer Linienkoerper
+- Topmost-Suchreihenfolge
+- `FindNodeAt()` fuer Endnode
+- Nichttreffer ausserhalb der Toleranz
+- `SelectOnlyObject()`
+- `SelectObject()` fuer Mehrfachauswahl
+- `GetSelectedObject()` und `GetSelectedObjectIndex()`
+- `CountSelectedObjects()`
+- `DeleteSelectedObjects()`
+- `DeleteObject()`
+- Ablehnung ungueltiger Delete-Indizes
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Bekannte bestehende Warnungen:
+
+- `vop_base.cpp`: alte `if(!this)`-Pruefungen erzeugen Clang-Warnungen.
+- `voc_line.cpp`: `OSTATE_NEEDSELECTED` nicht im Switch behandelt.
+
+Diese Warnungen stammen aus bereits portiertem Legacy-Code und wurden in diesem
+Step nicht veraendert.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+2/2 Tests bestanden:
+
+- `ved_core_line_tests`
+- `ved_core_model_tests`
+
+Zwischenbefund
+--------------
+Die fachliche Grundlage fuer `VOM_SELECT_OBJECT` ist jetzt vorhanden:
+
+- Linie kann ueber Mouse-Tolerance gefunden werden.
+- Liniennodes koennen separat gefunden werden.
+- Selektion liegt im Modell.
+- Loeschen selektierter Objekte liegt im Modell.
+- GridLock-Snap der Operationskoordinate ist fuer alle Operationen vorbereitet.
+
+Naechster Schritt
+-----------------
+`port_step_2_004`: echte Select-Operation fuer Line.
+
+Geplante Inhalte:
+
+- minimale `VOM_SELECT_OBJECT`-Operation portieren oder kompatibel neu
+  schneiden
+- `TDViewOperationManager::SetOperation(VOM_SELECT_OBJECT)` anbinden
+- Select-Toolbar wirklich an Operation binden
+- Cursor-Semantik aus altem VED beruecksichtigen:
+  `VECVIEW_CURSOR_DEFAULT` und `VECVIEW_SELECT_OBJECT` zeigen auf denselben
+  `select_object` Cursor
+- Klick auf Linie selektiert sie
+- Klick auf leere Flaeche deselektiert

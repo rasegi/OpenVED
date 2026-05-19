@@ -1,0 +1,92 @@
+Port Step 023 - Scrollbar-DoScroll-Semantik aus VED nachziehen
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach `port_step_021.log` waren Scrollbars sichtbar und an `PanX/Y` gekoppelt.
+Die alte VED-Semantik fuer Line-/Page-Schritte und Pan-Clamping war aber noch
+nicht vollstaendig nachgezogen.
+
+Legacy-Referenz
+---------------
+Untersucht:
+
+```text
+borland_ved/src/comp/vcl/vcl_vec_view.cpp
+```
+
+Relevante Konstanten:
+
+```cpp
+static const int PAGE_SCROLL_OVERLAP = 100; // *1/1000 von Clientgroesse
+static const int SCROLLS_PER_PAGE    = 8;
+```
+
+Relevante Methoden:
+
+```text
+TSCVecView::DoScroll(...)
+TSCVecView::UpdateScrollBars()
+TSCVecView::AdjustPanX()
+TSCVecView::AdjustPanY()
+TSCVecView::GetTotalRect(...)
+```
+
+Qt-Umsetzung
+------------
+`QVedWidget` hat jetzt VED-nahe Schrittweiten:
+
+```text
+PageScroll = CanvasSize - (CanvasSize * 100 / 1000)
+LineScroll = PageScroll / 8
+```
+
+Die Scrollbar-Thumb-Groesse bleibt wie in VED die Client-/Canvas-Groesse:
+
+```text
+horizontalScrollBar_->setPageStep(canvasWidth)
+verticalScrollBar_->setPageStep(canvasHeight)
+```
+
+Die eigentliche Page-Bewegung wird ueber `QScrollBar::actionTriggered`
+abgefangen und auf die VED-Schrittweite gesetzt.
+
+Pan-Clamping
+------------
+`updateScrollBars()` clampet `TDGraphicEngineQt::GetPanX/Y()` jetzt wirklich
+auf gueltige Scrollbar-Ranges zurueck:
+
+```text
+PanX = clamp(PanX, 0, horizontalMaximum)
+PanY = clamp(PanY, 0, verticalMaximum)
+```
+
+Damit koennen Zoom, Maus-Pan und Scrollbar-Bewegungen keine dauerhaft
+ungueltigen Pan-Zustaende hinterlassen.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Jetzt ist die View-Basis ausreichend stabil fuer den naechsten Core-Block:
+
+1. `TDVecEdit`, `TDVecModel` und die minimale `TDVecObject`-Basisschnittstelle
+   aus `borland_ved/src/comp` nach `src/ved_core` kopieren.
+2. Nur die fuer `TDVecEditCad::PaintContentOnView()` notwendigen Methoden
+   zuerst kompilierbar machen:
+   `CountObjects`, `GetObject`, `GetFrame`, `Draw`, `GetSelect`,
+   `DrawNodes`, `DrawFrame`.
+3. Danach `src/ved_core/main/legacy_pending/vec_edit_cad.*` in den echten
+   `ved_core`-Build verschieben.
+4. `QVedWidget::setPaintContentCallback()` mit einer echten
+   `TDVecEditCad::PaintContentOnView(view)`-Instanz verbinden.

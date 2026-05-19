@@ -1,0 +1,172 @@
+Port Step 014 - QVedWidget als zentrale Canvas einfuehren
+Datum: 2026-05-14
+
+Ausloeser
+---------
+In `port_step_012.log` war als naechster sinnvoller Schritt genannt:
+
+```text
+`QVedWidget` als echte zentrale Canvas-Klasse anlegen und das bisherige
+Placeholder-Label ersetzen. Danach koennen wir `paintEvent()`, Maus-Events und
+Keyboard-Events sauber vorbereiten.
+```
+
+Die Bestandsanalyse `junie_bestand_analyse_borland.md` bestaetigt fuer die
+Qt-Strategie:
+
+- die alte VCL-View nicht 1:1 portieren
+- eine neue `QVedWidget : public QWidget`-Schicht schaffen
+- spaeter Qt-Events auf `TDVecEditCad` / `TDViewOperationManager` mappen
+- spaeter ein Qt-Grafikbackend fuer `TDGraphicEngine` anbinden
+
+Korrektur der Grenze
+--------------------
+Wichtig: `QVedWidget` darf die alte View-Semantik nicht neu erfinden.
+Zoom, Pan, Margin, Workspace/ViewRange, Scrollbar-Positionen,
+Koordinatenkonvertierung und Sichtbarkeit liegen im Legacy-System nicht lose im
+Widget, sondern in der Screen-Ausgabe der GraphicEngine und ihrer View-
+Anbindung.
+
+Relevante Legacy-Klassen:
+
+```text
+borland_ved/src/comp/gengine/vec_graphic_engine.h
+borland_ved/src/comp/gengine/vec_graphic_engine_screen.h
+borland_ved/src/comp/gengine/vec_graphic_engine_screen.cpp
+borland_ved/src/comp/main/vec_view_interface.h
+borland_ved/src/comp/main/vec_edit_cad.h
+borland_ved/src/comp/main/vec_edit_cad.cpp
+borland_ved/src/comp/vcl/vcl_vec_view.h
+borland_ved/src/comp/vcl/vcl_vec_view.cpp
+```
+
+`TDGraphicEngineScreen` besitzt unter anderem:
+
+```text
+mRealViewRange
+mRealWorldSpaceRange
+mRealWorkSpaceRange
+mnRealPerPixelX / mnRealPerPixelY
+mnZoom / mZoom
+mnMarginX / mnMarginY
+mnPanX / mnPanY
+```
+
+und liefert die zentrale Semantik fuer:
+
+```text
+RealToXPos / RealToYPos
+ScreenToXPos / ScreenToYPos
+SetViewRange / SetWorkSpaceRange / SetWorldSpaceRange
+SetZoom / GetZoom / SetZoomToRealSize
+SetPanX/Y / ChangePanX/Y / GetPanX/Y
+SetMarginX/Y / GetMarginX/Y
+IsRectVisible
+GetMouseTolerance
+GetMinimumDistance
+DrawGrid
+```
+
+Ziel
+----
+Das zentrale Placeholder-Label im Hauptfenster wird durch eine echte
+Canvas-Klasse ersetzt. Diese Klasse soll noch keine Legacy-CAD-Logik und keine
+eigene View-Geometrie enthalten, sondern nur die noetigen Qt-Hooks fuer den
+spaeteren Adapter vorbereiten.
+
+Geaenderte Dateien
+------------------
+```text
+CMakeLists.txt
+src/app/MainWindow.cpp
+src/app/QVedWidget.h
+src/app/QVedWidget.cpp
+scrapbook/port_step_014.log
+```
+
+Neue Klasse
+-----------
+```cpp
+class QVedWidget final : public QWidget
+```
+
+Vorbereitete Qt-Hooks:
+
+```cpp
+void paintEvent(QPaintEvent* event) override;
+void mousePressEvent(QMouseEvent* event) override;
+void mouseMoveEvent(QMouseEvent* event) override;
+void mouseReleaseEvent(QMouseEvent* event) override;
+void wheelEvent(QWheelEvent* event) override;
+void keyPressEvent(QKeyEvent* event) override;
+void keyReleaseEvent(QKeyEvent* event) override;
+```
+
+Aktuelles Verhalten
+-------------------
+`QVedWidget` zeichnet nur einen neutralen Canvas-Hintergrund und besitzt die
+Qt-Event-Hooks. Es implementiert bewusst kein eigenes Grid, kein eigenes
+Zooming, kein eigenes Panning und keine eigene Real-/Screen-
+Koordinatentransformation.
+
+Diese Logik muss im naechsten Schritt aus der alten Screen-GraphicEngine
+herausgeloest und als Qt-Screen-GraphicEngine nachgebildet werden.
+
+MainWindow-Anbindung
+--------------------
+Vorher:
+
+```cpp
+auto* placeholder = new QLabel(QStringLiteral("VED Qt canvas placeholder"), this);
+setCentralWidget(placeholder);
+```
+
+Jetzt:
+
+```cpp
+auto* canvas = new QVedWidget(this);
+setCentralWidget(canvas);
+```
+
+CMake
+-----
+Die neuen Dateien wurden in `qt_add_executable(ved_qt_app ...)` aufgenommen:
+
+```text
+src/app/QVedWidget.cpp
+src/app/QVedWidget.h
+```
+
+Bewusste Grenze
+---------------
+Dieser Schritt bindet noch keine Dateien aus `borland_ved/src/comp` ein.
+`QVedWidget` ist aktuell nur die Qt-seitige Zielstelle. Die naechste fachliche
+Arbeit ist nicht ein freies Widget-Verhalten, sondern die Basis fuer eine
+`TDGraphicEngineScreen`-aehnliche Qt-Implementierung plus
+`TDVecViewInterfaceTemplate<QVedWidget>`-Anbindung.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die alte Screen-GraphicEngine detailliert in eine Qt-Zielarchitektur
+ueberfuehren:
+
+1. `TDGraphicEngine`-Interface als Teil von `ved_core` kompilierbar machen.
+2. Die nicht-GDI Semantik aus `TDGraphicEngineScreen` identifizieren:
+   Zoom, Pan, Margin, ViewRange, WorkSpaceRange, Real/Screen-Konvertierung,
+   Sichtbarkeit und Toleranzen.
+3. Eine Qt-Screen-Engine planen, die diese Semantik erhaelt und nur die
+   eigentlichen Zeichenoperationen von GDI auf `QPainter` ersetzt.
+4. Danach erst `QVedWidget` mit GraphicEngine und
+   `TDVecViewInterfaceTemplate<QVedWidget>` verbinden.

@@ -1,0 +1,62 @@
+Port Step 030 - Ersten echten Objektfluss durch PaintContentOnView sichtbar machen
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach `port_step_029.log` war der technische Paint-Pfad vorhanden, aber das
+Modell war leer. Sichtbar waren deshalb weiterhin nur Grid/Achsen/View-Basis.
+
+Korrektur
+---------
+`MainWindow::initializeEditor()` legt jetzt ein minimales Testmodell an:
+
+```text
+TDVecLine diagonal
+TDVecLine horizontal
+TDVecLine vertical
+```
+
+Die diagonale Linie ist selektiert:
+
+```cpp
+diagonal->SetSelect(true);
+```
+
+Damit laufen jetzt auch `DrawNodes()` und `DrawFrame()` sichtbar durch
+`TDVecEditCad::PaintContentOnView()`.
+
+Zweck
+-----
+Das ist noch keine Create-Operation und kein Dokument-Import. Es ist eine
+kleine Model-Testinitialisierung, um den neuen Core-Paint-Pfad zu pruefen:
+
+```text
+TDVecModel -> TDVecEditCad::PaintContentOnView()
+           -> TDVecObject/TDVecLine::Draw()
+           -> TDGraphicEngineQt
+           -> QPainter
+```
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Jetzt einen ersten interaktiven Create-Pfad anschliessen:
+
+1. Toolbar-Action `VOC_LINE` an einen minimalen Line-Create-Modus koppeln.
+2. Mauskoordinaten ueber `TDGraphicEngineQt::ScreenToXPos/YPos` in Realwerte
+   wandeln.
+3. Bei aktivem `cmdLockGrid` auf Grid runden.
+4. Mit zwei Klicks eine `TDVecLine` erzeugen und in `TDVecModel` ablegen.
+5. Danach diese provisorische Create-Logik schrittweise durch die echte alte
+   `VOC_LINE`-Operation ersetzen.

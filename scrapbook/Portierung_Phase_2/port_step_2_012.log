@@ -1,0 +1,60 @@
+Port Step 2.012 - Rectangle / PolygonArea / PolyCurveArea Create-Port
+
+Ziel:
+- Rectangle-Create und die dafuer benoetigten Datenobjekte VED-treu in den Qt-Port bringen.
+- Keine neue Model-Architektur, keine neue Rectangle-Objektklasse.
+
+Borland-Referenz:
+- VOC_RECTANGLE_NOTROTATED erzeugt am Ende TDVecPolygonArea.
+- VOC_RECTANGLE_ROTATED erzeugt am Ende TDVecPolygonArea.
+- Beide setzen SetRectangularLock(true).
+- VOC_ROUND_RECTANGLE_NOTROTATED erzeugt TDVecPolyCurveArea mit 13 Contur-Points und SetRectangularLock(true).
+
+Core-Daten:
+- TDVecPolygonArea als TDVecObject ergaenzt:
+  - Type VECOBJ_POLAREA.
+  - Punkte-Array.
+  - Draw schliesst das Polygon wie alte VED durch erneutes Anhaengen des ersten Punkts.
+  - DrawNodes zeichnet Objekt-Nodes plus Mittelpunkt.
+  - MoveBy/MoveNode/ToScale/Rotate/TransformToPoint/TransformToOrigin.
+  - RectangularLock-Flag.
+- TDVecPolyCurveArea als TDVecObject ergaenzt:
+  - Type VECOBJ_POLYCURVEAREA.
+  - TDMatConturPoint mit CPT_PRIME_LINE und CPT_PRIME_QSPLINE.
+  - Draw mit Linien- und QSpline-Segmenten.
+  - DrawNodes mit rectangular-lock Verhalten wie alte VED.
+  - MoveBy/MoveNode/ToScale/Rotate/TransformToPoint/TransformToOrigin.
+  - RectangularLock, ShowControls, ShowPolygon, Resolution.
+
+Create-Operationen:
+- TDVOCRectangleNotRotated portiert.
+- TDVOCRectangleRotated portiert.
+- TDVOCRoundRectangleNotRotated portiert.
+- Die Operationen sind in CMake eingebunden.
+- TDViewOperationManager instanziiert:
+  - VOC_RECTANGLE_NOTROTATED
+  - VOC_RECTANGLE_ROTATED
+  - VOC_ROUND_RECTANGLE_NOTROTATED
+- GetAktiveOperationType erkennt diese Operationen.
+
+Toolbar:
+- Rectangle Orthogonal Button ist jetzt implementiert und aktiviert.
+- Rectangle Rotated Button ist jetzt implementiert und aktiviert.
+- Round Rectangle Button ist jetzt implementiert und aktiviert.
+- Alle drei Buttons laufen ueber addCreateOperationAction wie die anderen portierten Create-Operationen.
+
+Tests:
+- Neuer Test ved_core_rectangle_operation_tests:
+  - VOC_RECTANGLE_NOTROTATED erzeugt TDVecPolygonArea mit 4 Punkten und RectangularLock.
+  - VOC_RECTANGLE_ROTATED erzeugt TDVecPolygonArea mit 4 Punkten und RectangularLock.
+  - VOC_ROUND_RECTANGLE_NOTROTATED erzeugt TDVecPolyCurveArea mit 13 Contur-Points und RectangularLock.
+
+Verifikation:
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 9/9 Tests bestanden.
+
+Grenzen / Naechste Pruefung:
+- PolyCurveArea ist fuer RoundRectangle-Create und grundlegende Objektmanipulation portiert.
+- Weitere PolyCurveArea-Modify-Operationen wie Insert/Delete/Change Edge Round Node sind noch nicht Teil dieses Steps.
+- Mathlib wurde nicht veraendert.

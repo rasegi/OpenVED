@@ -1,0 +1,86 @@
+Port Step 2.016 - Neues Feature: optionale Mouse-Tolerance-Crosshair-Anzeige und Koordinaten in Statusbar
+Datum: 2026-05-15
+
+Ziel
+- Neues Qt-Port-Feature ergaenzen, das nicht 1:1 aus dem alten Borland-VED stammt.
+- Bei allen VOC-Operationen und bei VOM-Operationen ausser Select-Operationen soll die aktuelle Mouse-Tolerance optional sichtbar sein.
+- Select-Operationen behalten ihre bisherige Mouse-Tolerance-Anzeige als Kreis an der Cursor-/Trefferposition.
+- Nicht-Select-Operationen zeigen die Mouse-Tolerance als horizontale und vertikale Linien mit Schnittpunkt auf der echten Operationskoordinate.
+- Die Anzeige soll ueber einen Toolbar-Button neben den Grid-Buttons ein- und ausschaltbar sein.
+- Die aktuellen X/Y-Koordinaten sollen dauerhaft in der Fusszeile/Statusbar angezeigt werden.
+- Der Name der aktiven Operation soll ebenfalls dauerhaft in der Fusszeile/Statusbar angezeigt werden.
+- Der angezeigte Operationsname entspricht dem technischen Namen, der auch als Toolbar-Tooltip/StatusTip verwendet wird.
+
+Einordnung
+- Dies ist bewusst ein neues Feature des Qt-Ports.
+- Der alte Borland-Code kennt die fachliche Mouse-Tolerance:
+  - VOM-Operationen nutzen GetMouseTolerance() fuer HitTests und Drag-Schwellen.
+  - VOC-Operationen nutzen GetMinimumDistance() fuer Mindestgroessen neuer Objekte.
+- Die neue Crosshair-Darstellung erweitert die Bedienhilfe im Qt-Port, ohne die Core-Operationen oder deren Borland-nahe Toleranzlogik zu aendern.
+
+Umsetzung Qt
+- TDGraphicEngineQt:
+  - DrawMouseToleranceCross(double x, double y) ergaenzt.
+  - Zeichnet eine horizontale und eine vertikale Linie ueber die sichtbare Canvas.
+  - Der Schnittpunkt liegt auf der realen Zielkoordinate.
+  - Die bestehende DrawMouseToleranz(...) fuer den Select-Kreis bleibt unveraendert.
+- QVedWidget:
+  - Neuer Toggle-Zustand showMouseToleranceCross_.
+  - Public API:
+    - setShowMouseToleranceCross(bool)
+    - showMouseToleranceCross() const
+  - Neuer MouseCoordinateCallback fuer Statusbar-Koordinaten.
+  - updateSnapMousePoint(...) wird jetzt sowohl fuer Select-Kreis als auch fuer Crosshair genutzt.
+  - shouldDrawMouseToleranceMarker():
+    - nur noch fuer Select-Operationen bzw. Select-Cursor.
+  - shouldDrawMouseToleranceCross():
+    - aktiv nur bei eingeschaltetem Toggle.
+    - sichtbar fuer CreateLine, MoveObject, DeleteObject und ModifyObject.
+    - nicht sichtbar fuer SelectObject.
+  - leaveEvent(...) setzt Koordinatenanzeige und Marker zurueck, wenn die Maus die Canvas verlaesst.
+- MainWindow:
+  - Neuer Toolbar-Button "Mouse Tolerance Cross" in der View-Toolbar direkt neben Show Grid / Use Grid.
+  - Icon wird zur Laufzeit als kleines 16x16 Grid mit Crosshair erzeugt.
+  - Button toggelt QVedWidget::setShowMouseToleranceCross(...).
+  - Neues permanentes Statusbar-Feld fuer aktive Operation:
+    - Format: "Operation: <name>"
+    - Bei keiner aktiven Operation: "Operation: -"
+    - Verwendet dieselben technischen Namen wie die Toolbar-Tooltips, z.B. VOC_LINE, VOM_SELECT_MOVE_NODE_OBJECT.
+  - Neue Statusbar-Permanentanzeige fuer Koordinaten:
+    - Format: "X: <wert>  Y: <wert>"
+    - Bei Maus ausserhalb der Canvas: "X: -  Y: -"
+  - Koordinaten kommen aus QVedWidget::operationPoint(...), also inklusive Grid-Snap, wenn Grid-Lock aktiv ist.
+
+Dateien
+- src/ved_qt/gengine/vec_graphic_engine_qt.h
+- src/ved_qt/gengine/vec_graphic_engine_qt.cpp
+- src/app/QVedWidget.h
+- src/app/QVedWidget.cpp
+- src/app/MainWindow.h
+- src/app/MainWindow.cpp
+
+Verhalten
+- Select und Select/Scale:
+  - weiter Kreis-Marker wie bisher.
+  - neuer Crosshair-Toggle wirkt dort bewusst nicht.
+- VOC_*:
+  - bei aktivem Toggle volle horizontale/vertikale Crosshair-Linien an der Operationskoordinate.
+  - Schnittpunkt ist die Koordinate, die an die Operation uebergeben wird.
+- VOM_* ausser Select:
+  - bei aktivem Toggle volle horizontale/vertikale Crosshair-Linien an der Operationskoordinate.
+  - VOM_DELETE_OBJECT, VOM_MOVE_OBJECT, VOM_CHANGE_EDGE_ROUND_NODE usw. erhalten damit dieselbe optionale visuelle Zielhilfe.
+- Grid-Lock:
+  - Marker und Statusbar zeigen die gesnappte Operationskoordinate.
+- Aktive Operation:
+  - Fusszeile zeigt den aktiven Operationnamen dauerhaft neben den Koordinaten.
+  - Kurze statusBar()->showMessage(...)-Meldungen bleiben weiterhin moeglich, ersetzen aber nicht das permanente Operationsfeld.
+
+Verifikation
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 11/11 Tests bestanden.
+
+Hinweise
+- Keine Core-Toleranzlogik wurde geaendert.
+- Keine Borland-Portierung einer alten Operation, sondern ein neues UI-/Bedienfeature des Qt-Ports.
+- Das Icon ist bewusst nicht als neue Ressourcendatei abgelegt, sondern wird im MainWindow erzeugt.

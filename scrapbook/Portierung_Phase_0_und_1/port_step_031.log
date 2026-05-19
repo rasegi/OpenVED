@@ -1,0 +1,91 @@
+Port Step 031 - Minimalen VOC_LINE-Create-Pfad an das Core-Modell anbinden
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Nach `port_step_030.log` war der alte Core-Paint-Pfad sichtbar:
+
+```text
+TDVecModel -> TDVecEditCad::PaintContentOnView()
+           -> TDVecObject/TDVecLine::Draw()
+           -> TDGraphicEngineQt
+           -> QPainter
+```
+
+Der naechste sinnvolle Schritt war ein erster interaktiver Create-Pfad,
+damit nicht nur Testobjekte gezeichnet werden.
+
+Umsetzung
+---------
+`VOC_LINE` ist jetzt in der Toolbar als implementierte Aktion markiert und
+schaltet `QVedWidget` in einen temporaeren Line-Create-Modus.
+
+Bedienung:
+
+```text
+1. Klick links: Startpunkt setzen
+2. Maus bewegen: Vorschau-Linie zeichnen
+3. Klick links: TDVecLine erzeugen und in TDVecModel ablegen
+4. Klick rechts: laufende Linienerzeugung abbrechen
+```
+
+Die Mauskoordinaten werden ueber die vorhandene Screen-GraphicEngine
+umgerechnet:
+
+```text
+TDGraphicEngineQt::ScreenToXPos()
+TDGraphicEngineQt::ScreenToYPos()
+```
+
+Bei aktivem `cmdLockGrid` wird auf das aktuelle Basissnap-Raster gerundet:
+
+```text
+kGridDistance / kGridSubDivisions = 10000 / 10 = 1000
+```
+
+Neue Linien werden als echte `TDVecLine` in `TDVecModel` abgelegt. Danach
+laeuft die Darstellung wieder ueber `TDVecEditCad::PaintContentOnView()`.
+
+Geaenderte Dateien
+------------------
+```text
+src/app/QVedWidget.h
+src/app/QVedWidget.cpp
+src/app/MainWindow.h
+src/app/MainWindow.cpp
+src/ved_core/main/vec_model.h
+src/ved_core/main/vec_model.cpp
+```
+
+Hinweis
+-------
+Das ist noch nicht die echte alte `TDVOCLine`-Operation. Es ist eine bewusst
+kleine Qt-Bruecke, um den bestehenden Modell- und Paint-Fluss interaktiv zu
+nutzen. Die spaetere Portierung soll diese Bruecke durch die alte
+Create-Operation ersetzen, statt eine zweite CAD-Logik dauerhaft neben dem
+VED-Core zu halten.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die temporaere `VOC_LINE`-Bruecke mit der alten Operation zusammenfuehren:
+
+1. Alte `VOC_LINE`/`TDVOCLine`-Quellen aus `borland_ved` in die neue
+   Core-Struktur kopieren.
+2. Mausereignisse nicht mehr direkt in `MainWindow`/`QVedWidget` in Objekte
+   umsetzen, sondern an die alte Operation weiterreichen.
+3. GridLock-Snapping dort anbinden, wo VED frueher die View-Mauskoordinaten
+   vor der Operation korrigiert hat.
+4. Die temporaere Zwei-Klick-Erzeugung entfernen, sobald `TDVOCLine`
+   kompilierbar und an `TDVecEditCad` angebunden ist.

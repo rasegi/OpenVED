@@ -1,0 +1,169 @@
+Port Step 3.002 - Fontengine und wps_default.vfn geladen
+Datum: 2026-05-16
+
+Ziel
+====
+
+- Auf dem SCLIB-Kern aus Step 3.001 aufbauen.
+- Die alten VED-Fontdatenklassen portieren.
+- `wps_default.vfn` ohne Plugin und ohne TrueType-Konvertierung laden.
+- Den alten Stream-/Factory-Weg fuer `vfnt`, `vchr`, `vgly`, `plyc` aktivieren.
+
+Umsetzung
+=========
+
+Neu:
+
+- `src/ved_core/fontengine/vec_font.h`
+- `src/ved_core/fontengine/vec_font.cpp`
+- `src/app/resources/font/wps_default.vfn`
+- `tests/ved_core_vec_font_tests.cpp`
+
+Geaendert:
+
+- `CMakeLists.txt`
+- `src/ved_core/vecobjects/vec_object.h`
+- `src/ved_core/vecobjects/vec_object.cpp`
+- `src/ved_core/vecobjects/vec_polycurve.h`
+- `src/ved_core/vecobjects/vec_polycurve.cpp`
+- `tests/ved_core_sclib_tests.cpp`
+
+Fontklassen
+===========
+
+Portiert wurden:
+
+- `TDVecFont`
+- `TDVecCharacter`
+- `TDVecGlyph`
+
+Die Klassen bleiben Qt-frei und nutzen weiter die alte SCLIB-Struktur:
+
+- `TDStreamable`
+- `TDSimpleInStream`
+- `TDSimpleOutStream`
+- `TDObjPtrArray`
+- `ObjPtrArrayReadFromStream`
+- `ObjPtrArrayWriteToStream`
+
+Ergaenzt wurden:
+
+- `RegisterVecFontStreamTypes()`
+- `LoadVecFontFromMemory(...)`
+- `VecStreamFourCC(...)`
+
+Wichtig:
+
+- FourCC wird explizit als Little-Endian-Wert erzeugt.
+- Das ist notwendig, weil moderne Multi-Char-Literals nicht portabel genug sind.
+- Die VFN-Datei enthaelt ab Byte 1024 die Bytes `vfnt`.
+
+Registrierte Stream-Typen
+=========================
+
+- `plyc` -> `TDVecPolyCurve`
+- `vfnt` -> `TDVecFont`
+- `vgly` -> `TDVecGlyph`
+- `vchr` -> `TDVecCharacter`
+
+PolyCurve-Streambruecke
+=======================
+
+Die vorhandene moderne `TDVecPolyCurve` wurde nicht zurueckmodernisiert.
+
+Ergaenzt wurde nur, was fuer VFN noetig ist:
+
+- Konstruktor aus `TDSimpleInStream`
+- `WriteToStream`
+- `CreateFromStream`
+- `DrawPolyCurve(...)` als alte Fontengine-kompatible Huelle
+- `GetPointFree(...)` fuer spaetere Text-/Glyph-Operationen
+
+`TDVecObject` wurde ebenfalls streamfaehig gemacht:
+
+- erbt jetzt von `TDStreamable`
+- liest/schreibt die alten Basisfelder:
+  - Select
+  - Type
+  - LockResize
+  - LockPosition
+  - ResizeProportional
+  - Layer-ID
+  - Color
+
+Hinweis:
+
+- Die alte Layer-ID wird beim Lesen konsumiert, im aktuellen Core-Slice aber noch nicht
+  fachlich verwendet.
+- Beim Schreiben wird sie als `0` ausgegeben.
+
+Resource
+========
+
+`wps_default.vfn` wurde nach `src/app/resources/font/wps_default.vfn` kopiert.
+
+`CMakeLists.txt` nimmt `*.vfn` unter `src/app/resources/font` in die Qt-Resources der App auf.
+
+Der Core selbst bleibt Qt-frei. Der Test laedt die Datei direkt aus dem Workspace; spaeter kann
+die App die Resource-Bytes liefern und an `LoadVecFontFromMemory(...)` uebergeben.
+
+Tests
+=====
+
+Neu:
+
+- `ved_core_vec_font_tests`
+
+Der Test prueft:
+
+- `wps_default.vfn` ist vorhanden.
+- Die Datei hat die erwartete Groesse `115309` Byte.
+- An Offset `1024` steht `vfnt`.
+- `LoadVecFontFromMemory(...)` erzeugt einen `TDVecFont`.
+- Font-Metriken sind plausibel.
+- Es werden mehr als 100 Characters geladen.
+- Glyph fuer `A` existiert und ist nicht spacing.
+- Glyph fuer Space existiert und ist spacing.
+
+Ergaenzt:
+
+- `ved_core_sclib_tests` prueft die VED-FourCC-Byteordnung jetzt mit `vfnt`.
+
+Verifikation
+============
+
+Ausgefuehrt:
+
+- `cmake --build cmake-build-debug --target ved_core_vec_font_tests`
+- `ctest --test-dir cmake-build-debug -R ved_core_vec_font_tests --output-on-failure`
+- `cmake --build cmake-build-debug --target ved_core_sclib_tests`
+- `cmake --build cmake-build-debug --target ved_qt_app`
+- `ctest --test-dir cmake-build-debug --output-on-failure`
+
+Ergebnis:
+
+- `ved_core_vec_font_tests` baut und besteht.
+- `ved_core_sclib_tests` baut und besteht.
+- `ved_qt_app` baut.
+- Gesamttests: 19/19 bestanden.
+
+Nicht gemacht
+=============
+
+- Keine Textobjekte portiert.
+- Kein `TDVecText`.
+- Kein `TDVecFrameText`.
+- Kein Fontmanager aus Borland uebernommen.
+- Keine Windows/GDI-TrueType-Konvertierung.
+- Kein Plugin.
+- Keine STL-/modern-C++-Ablösung der SCLIB.
+
+Naechster Schritt
+=================
+
+Step 3.003 sollte die Textobjekte auf dieser Basis portieren:
+
+- `TDVecText`
+- `TDVecFrameText`
+- Factory-Typen `vtxt` und `ftxt`
+- Zeichnen ueber die geladenen VED-Glyphen aus `wps_default.vfn`

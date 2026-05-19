@@ -1,0 +1,38 @@
+Port Step 027 - Hauptgrid und Subgrid unterschiedlich grau zeichnen
+Datum: 2026-05-14
+
+Korrektur
+---------
+Grid-Punkte werden jetzt in zwei Staerken gezeichnet:
+
+```cpp
+constexpr TDRgbColor kSubGridColor  = 0x00808080;
+constexpr TDRgbColor kMainGridColor = 0x004A4A4A;
+```
+
+Das Subgrid bleibt damit mindestens so stark wie bisher. Das Hauptgrid wird
+dunkler gezeichnet, damit die 10er-Struktur sichtbar wird.
+
+Verhalten
+---------
+Wenn die adaptive Grid-Stufe kleiner als das Hauptgrid ist, werden:
+
+```text
+Subgrid-Punkte  -> kSubGridColor
+Hauptgrid-Punkte -> kMainGridColor
+```
+
+Wenn die adaptive Grid-Stufe bereits groesser/gleich Hauptgrid ist, werden alle
+sichtbaren Grid-Punkte als Hauptgrid gezeichnet.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

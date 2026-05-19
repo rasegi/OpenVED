@@ -1,0 +1,20 @@
+/borland_ved/scved/obj/
+/borland_ved/zz_vss/**
+
+# Legacy build artifacts
+*.obj
+
+# Visual SourceSafe archive
+borland_ved/zz_vss/
+zz_vss/
+
+# IDE-Jetbrains 
+.idea/
+
+# CMake / local builds
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+/borland_ved/

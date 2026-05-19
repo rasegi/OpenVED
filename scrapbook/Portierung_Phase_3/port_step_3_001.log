@@ -1,0 +1,132 @@
+Port Step 3.001 - SCLIB-Kern fuer Text/VFN importiert
+Datum: 2026-05-16
+
+Ziel
+====
+
+- Ersten technischen Phase-3-Schritt umsetzen.
+- Den fuer Text/VFN benoetigten SCLIB-Kern in den Qt-Core holen.
+- Fachliche SCLIB-Logik nicht modernisieren.
+- Nur notwendige Compiler-/Plattformkompatibilitaet fuer macOS/Qt herstellen.
+
+Importierte SCLIB-Dateien
+=========================
+
+Neu unter `src/ved_core/sclib`:
+
+- `sc_array.h/.cpp`
+- `sc_object_array.h/.cpp`
+- `sc_pointer_array.h/.cpp`
+- `sc_array_stream.h/.cpp`
+- `sc_dynamic_factory.h/.cpp`
+- `sc_streamable.h/.cpp`
+- `sc_stream.h/.cpp`
+- `sc_simple_stream.h/.cpp`
+- `sc_memory.h/.cpp`
+- `sc_utils.h/.cpp`
+
+Bewusst noch nicht importiert:
+
+- `sc_files`
+- `sc_messages`
+- `sc_metrics`
+- `sc_trace`
+- `sc_easy_array`
+
+Projektanbindung
+================
+
+Geaendert:
+
+- `CMakeLists.txt`
+
+Umgesetzt:
+
+- SCLIB-Dateien in `ved_core` aufgenommen.
+- `src/ved_core/sclib` als Include-Verzeichnis fuer `ved_core` eingetragen.
+- Fuer den SCLIB-Kern `__DANAK_LINUX` gesetzt, damit nicht die Windows-Pfade aktiv werden.
+
+Kompatibilitaetsanpassungen
+===========================
+
+Geaendert:
+
+- `src/ved_core/sclib/sc_dynamic_factory.h`
+  - altes `<typeinfo.h>` auf modernes `<typeinfo>` umgestellt.
+- `src/ved_core/sclib/sc_array.h`
+  - alter Placement-`new`-Operator von `unsigned int` auf `size_t` angepasst.
+- `src/ved_core/sclib/sc_memory.cpp`
+  - macOS-Pfad fuer `malloc_size` ergaenzt.
+  - Linux-Pfad nutzt weiter `malloc_usable_size`.
+  - `MemoryReAlloc` und `MemoryGetSize` gehen ueber eine kleine lokale
+    `MemoryUsableSize`-Kompatibilitaetsfunktion.
+- `src/ved_core/sclib/sc_utils.cpp`
+  - Funktionspointer-Zuweisung an altes `void*`-Feld explizit gecastet.
+- `src/ved_core/sclib/sc_stream.cpp`
+  - `StreamReadSLong`, `StreamReadULong`, `StreamWriteSLong`, `StreamWriteULong` lesen und
+    schreiben das alte Borland-Win32-Streamformat weiter als 32-bit-Wert.
+  - Die oeffentliche API bleibt bei `signed long`/`unsigned long`.
+
+Grund fuer die 32-bit-Streamanpassung:
+
+- Borland-Win32 hatte `long == 4 Byte`.
+- macOS arm64 hat `long == 8 Byte`.
+- Ohne diese Anpassung waere `wps_default.vfn` spaeter falsch lesbar.
+
+Tests
+=====
+
+Neu:
+
+- `tests/ved_core_sclib_tests.cpp`
+
+Der Test prueft:
+
+- `TDSimpleOutStream` schreibt `SLong`/`ULong` als 4 Byte.
+- `TDSimpleInStream` liest diese Werte wieder korrekt.
+- `TDStreamable::Factory()` kann ein Testobjekt registrieren.
+- `WriteObject`/`ReadObject` funktionieren ueber die alte SCLIB-Factory.
+- `MemoryAlloc`, `MemoryReAlloc`, `MemoryFree` funktionieren auf macOS und nullen den
+  vergroesserten Speicherbereich.
+
+Verifikation
+============
+
+Ausgefuehrt:
+
+- `cmake --build cmake-build-debug --target ved_core_sclib_tests`
+- `ctest --test-dir cmake-build-debug -R ved_core_sclib_tests --output-on-failure`
+- `cmake --build cmake-build-debug --target ved_qt_app`
+
+Ergebnis:
+
+- `ved_core_sclib_tests` baut.
+- `ved_core_sclib_tests` bestanden.
+- `ved_qt_app` baut.
+
+Bekannte Warnungen
+==================
+
+- Alte Borland-Patterns wie `if(!this)` erzeugen erwartbare Compilerwarnungen.
+- `sc_utils.cpp` nutzt alte `sprintf`/`vsprintf`-Pfade und erzeugt Deprecation-Warnungen.
+- Einige kopierte Template-`*.cpp`-Dateien haben keine Symbole; das ist bei den alten
+  Header-Template-Modulen erwartbar.
+
+Nicht gemacht
+=============
+
+- Keine Textobjekte portiert.
+- Kein `wps_default.vfn` eingebunden.
+- Keine Fontengine portiert.
+- Keine Windows-only SCLIB-Module importiert.
+- Keine STL-/modern-C++-Umschreibung der SCLIB vorgenommen.
+
+Naechster Schritt
+=================
+
+Step 3.002 sollte auf diesem SCLIB-Kern aufbauen:
+
+- `vec_font.h/.cpp` portieren.
+- `vfnt`, `vchr`, `vgly`, `plyc` in der Factory registrieren.
+- `wps_default.vfn` einbinden.
+- VFN nach 1024-Byte-Header ueber `TDSimpleInStream` laden.

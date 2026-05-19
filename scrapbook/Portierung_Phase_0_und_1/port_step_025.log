@@ -1,0 +1,25 @@
+Port Step 025 - Grid-ZoomOut-Toleranz auf 2 Pixel setzen
+Datum: 2026-05-14
+
+Korrektur
+---------
+Die Grid-Resolution-Grenze wurde von 3 Pixel auf 2 Pixel gesenkt:
+
+```cpp
+constexpr long kGridResolutionLimit = 2;
+```
+
+Damit bleibt das Grid bei ZoomOut laenger sichtbar, bevor auf eine grobere
+Grid-Stufe gewechselt wird.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```

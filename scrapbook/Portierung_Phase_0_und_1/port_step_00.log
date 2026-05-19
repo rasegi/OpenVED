@@ -1,0 +1,154 @@
+Port Step 00 - Qt/CMake Skeleton
+Datum: 2026-05-14
+
+Ziel
+----
+Ersten modernen Qt-Projekt-Skeleton im Repository anlegen, ohne den Legacy-Code
+unter `borland_ved` zu veraendern. Dieser Schritt dient als leere, portable
+Qt-Basis fuer macOS, Windows und Linux.
+
+Entscheidung
+------------
+- Qt Widgets statt QML.
+- Begruendung: Qt Widgets + QPainter liegen naeher am alten VCL/GDI-Modell und
+  sind fuer den ersten VED-Port pragmatischer.
+- C++ Standard: C++23.
+- Legacy-Code bleibt unberuehrt in `borland_ved`.
+
+Lokale Umgebung
+---------------
+Gefunden:
+
+```text
+cmake version 4.1.2
+qmake: Qt version 6.9.3 in /opt/homebrew/lib
+cmake: /opt/homebrew/bin/cmake
+qmake: /opt/homebrew/bin/qmake
+qt-cmake: /opt/homebrew/bin/qt-cmake
+```
+
+Angelegte Dateien
+-----------------
+- `CMakeLists.txt`
+- `src/app/main.cpp`
+- `src/app/MainWindow.h`
+- `src/app/MainWindow.cpp`
+
+Geaenderte Dateien
+------------------
+- `.gitignore`
+
+Ergaenzte Ignore-Regeln:
+
+```text
+# CMake / local builds
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+```
+
+Projektstruktur nach Schritt 00
+-------------------------------
+```text
+.
+├── CMakeLists.txt
+├── borland_ved/              # unveraendert, Legacy-Code
+├── scrapbook/
+│   └── port_step_00.log
+└── src/
+    └── app/
+        ├── MainWindow.cpp
+        ├── MainWindow.h
+        └── main.cpp
+```
+
+CMake-Konfiguration
+-------------------
+Root-`CMakeLists.txt` enthaelt:
+
+- `project(ved_qt ...)`
+- `CMAKE_CXX_STANDARD 23`
+- `find_package(Qt6 REQUIRED COMPONENTS Widgets)`
+- `qt_standard_project_setup()`
+- `qt_add_executable(ved_qt_app ...)`
+- Link gegen `Qt6::Widgets`
+- macOS Bundle und Windows GUI Executable aktiviert
+
+Qt-App Inhalt
+-------------
+`MainWindow` ist eine minimale `QMainWindow`-Ableitung.
+
+Enthalten:
+
+- Fenstertitel: `VED Qt Port`
+- Groesse: `1100x750`
+- zentraler Placeholder: `VED Qt canvas placeholder`
+- Menue `File`
+  - `Exit`
+- Menue `View`
+  - `Reset View` deaktiviert
+- Menue `Help`
+  - `About`
+- Statusbar mit `Ready`
+
+Ausgefuehrte Commands
+---------------------
+Konfiguration:
+
+```bash
+qt-cmake -S . -B build/qt
+```
+
+Ergebnis:
+
+```text
+-- Configuring done
+-- Generating done
+-- Build files have been written to: .../build/qt
+```
+
+Hinweis:
+
+```text
+Could NOT find WrapVulkanHeaders
+```
+
+Das ist fuer diese Qt-Widgets-App irrelevant.
+
+Build:
+
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Erzeugtes Binary auf macOS:
+
+```text
+build/qt/ved_qt_app.app/Contents/MacOS/ved_qt_app
+```
+
+Git-Status nach Schritt
+-----------------------
+```text
+ M .gitignore
+?? CMakeLists.txt
+?? src/
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+`QVedWidget` als leere zentrale Canvas-Klasse anlegen. Noch ohne Legacy-Code.
+Danach:
+
+1. `QVedWidget` als Central Widget verwenden.
+2. `paintEvent()` mit einfachem Hintergrund/Grid vorbereiten.
+3. Maus-/Keyboard-Events erfassen.
+4. Erst danach VED-Core-Schichten schrittweise anbinden.

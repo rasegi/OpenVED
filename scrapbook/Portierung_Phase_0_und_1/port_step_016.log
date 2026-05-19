@@ -1,0 +1,197 @@
+Port Step 016 - Screen-GDI-Funktionen in TDGraphicEngineQt nachziehen
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Fortsetzung aus `port_step_015.log`:
+
+```text
+Die noch fehlenden Screen-spezifischen GDI-Operationen aus
+`TDGraphicEngineScreen` in `TDGraphicEngineQt` nachziehen:
+
+1. `DrawGrid`, `DrawAuxLineX/Y`, `DrawAuxLine` und `DrawMouseToleranz`
+   identifizieren und 1:1 semantisch nach Qt uebertragen.
+2. ROP2/XOR- bzw. Outline-Verhalten pruefen und eine passende Qt-
+   CompositionMode-Loesung waehlen.
+3. Node-Bilder/ImageList aus VED analysieren und als Qt-Resource-Strategie
+   vorbereiten.
+4. Danach `TDVecEditCad::PaintContentOnView()` aus der kopierten Core-Struktur
+   anbinden, sodass die Engine nicht nur existiert, sondern von der alten CAD-
+   Logik benutzt wird.
+```
+
+Legacy-Referenzen
+-----------------
+Untersuchte Stellen:
+
+```text
+borland_ved/src/comp/gengine/vec_graphic_engine_screen.h
+borland_ved/src/comp/gengine/vec_graphic_engine_screen.cpp
+borland_ved/src/comp/vcl/vcl_vec_view.cpp
+borland_ved/src/comp/main/vec_edit_cad.h
+borland_ved/src/comp/main/vec_edit_cad.cpp
+```
+
+Neue/kopierte Ressourcen
+------------------------
+Node-Bilder wurden aus `borland_ved/src/comp/resource/nodes` nach Qt kopiert:
+
+```text
+src/app/resources/nodes/nodes.bmp
+src/app/resources/nodes/_empty.bmp
+src/app/resources/nodes/node_*.bmp
+```
+
+`nodes.bmp` ist die alte 104x8-Bitmap-Strip-Resource. Das entspricht 13
+Eintraegen zu je 8x8 Pixel. `TDGraphicEngineScreen::DrawNode()` verwendet im
+VED den `TDNodeType` als ImageList-Index und bei gesperrtem Node `Index + 1`.
+`TDGraphicEngineQt` uebernimmt dieses Indexverhalten.
+
+CMake
+-----
+`CMakeLists.txt` nimmt jetzt neben Toolbar-BMPs auch Node-BMPs in die Qt-
+Resource auf:
+
+```text
+src/app/resources/nodes/*.bmp
+```
+
+Portierte Screen-GDI-Funktionen
+-------------------------------
+`TDGraphicEngineQt` besitzt jetzt die Screen-spezifischen Methoden:
+
+```text
+DrawAuxLineX
+DrawAuxLineY
+DrawAuxLine
+DrawGrid
+DrawMouseToleranz
+LoadDefaultNodeImages
+SetNodeImages
+```
+
+Die Semantik folgt `TDGraphicEngineScreen`:
+
+```text
+DrawGrid:
+- gleiche Parameter
+- gleiche Gueltigkeitspruefung fuer Breite/Hoehe/Dist/SubDiv
+- gleicher Resolution-Limit-Test ueber RealToXVal/RealToYVal
+- gleiche doppelte Punkt-Schleifenstruktur
+
+DrawAuxLineX/Y:
+- zeichnet ueber den aktuellen Clip-/Viewport-Bereich
+- Achsenposition wird wie in VED ueber RealToXPos/RealToYPos umgesetzt
+
+DrawMouseToleranz:
+- nutzt GetMouseTolerance()
+- zeichnet ein transparentes abgerundetes Rechteck um die Mausposition
+```
+
+ROP2 / XOR
+----------
+Die alten GDI-ROP2-Modi wurden auf Qt-RasterOps gemappt:
+
+```text
+GDI R2_NOT       -> QPainter::RasterOp_NotDestination
+GDI R2_NOTXORPEN -> QPainter::RasterOp_NotSourceXorDestination
+```
+
+Betroffene Qt-Ausgaben:
+
+```text
+Outline-Zeichnungen
+DrawConstructPolygon
+DrawLineOutLine
+DrawBoxOutLine
+DrawFrame
+DrawMouseToleranz
+```
+
+Hinweis: Qt-RasterOps sind die passende semantische Naehe zu GDI ROP2 fuer
+Raster-PaintDevices. Falls spaeter OpenGL/SceneGraph-Rendering eingefuehrt
+wird, muss diese Entscheidung erneut geprueft werden.
+
+Node-Images
+-----------
+`TDGraphicEngineQt::LoadDefaultNodeImages()` laedt:
+
+```text
+:/ved/nodes/nodes.bmp
+```
+
+und schneidet daraus 8x8-Pixmaps. Magenta `RGB(255,0,255)` wird wie in der VCL-
+ImageList als Transparenzmaske behandelt.
+
+`DrawNode()` versucht zuerst die Bitmap aus der Node-Liste zu zeichnen. Nur
+wenn keine passende Bitmap existiert, faellt es auf die einfache Qt-
+Ersatzzeichnung zurueck.
+
+PaintContentOnView
+------------------
+Die alte Datei wurde als noch nicht kompilierte Referenz kopiert:
+
+```text
+src/ved_core/main/legacy_pending/vec_edit_cad.h
+src/ved_core/main/legacy_pending/vec_edit_cad.cpp
+```
+
+`TDVecEditCad::PaintContentOnView()` liegt dort unveraendert bei Zeile 107. Die
+Datei wird noch nicht in `ved_core` kompiliert, weil sie unmittelbar die noch
+nicht portierten Schichten nachzieht:
+
+```text
+TDVecEdit
+TDVecModel
+TDVecObject
+TDViewOperationManager
+Operationen
+Objektklassen
+```
+
+Damit die PaintContent-Anbindung trotzdem an der richtigen Stelle vorbereitet
+ist, besitzt `QVedWidget` jetzt:
+
+```cpp
+using PaintContentCallback = std::function<void(TDVecViewInterfaceBase*)>;
+void setPaintContentCallback(PaintContentCallback callback);
+```
+
+Im `paintEvent()` wird die Qt-Engine als aktiver Painter gesetzt und danach
+der Callback mit `&viewInterface_` aufgerufen. Sobald `TDVecEditCad`
+kompilierbar portiert ist, kann direkt gebunden werden:
+
+```cpp
+canvas->setPaintContentCallback(
+    [editor](TDVecViewInterfaceBase* view) {
+        editor->PaintContentOnView(view);
+    });
+```
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake -S . -B build/qt
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die minimale kompilierbare Core-Kette fuer `TDVecEditCad::PaintContentOnView`
+nachziehen:
+
+1. `TDVecEdit`, `TDVecModel` und die Basisschnittstelle von `TDVecObject` in
+   `src/ved_core` kopieren und entkoppeln.
+2. Nur die fuer PaintContent notwendigen Methoden zuerst kompilierbar machen:
+   `CountObjects`, `GetObject`, `GetFrame`, `Draw`, `GetSelect`,
+   `DrawNodes`, `DrawFrame`.
+3. Danach `src/ved_core/main/legacy_pending/vec_edit_cad.*` aus `legacy_pending`
+   in den echten `ved_core`-Build verschieben.
+4. Dann `MainWindow`/Applikationsschicht mit einer echten `TDVecEditCad`-
+   Instanz und `QVedWidget::setPaintContentCallback()` verbinden.

@@ -1,0 +1,224 @@
+Port Step 2.018 - Curve-Objekte portiert und neues Polygon-Vorschauverhalten
+Datum: 2026-05-15
+
+Teil A - Portierung Curve-Objekte
+=================================
+
+Ziel
+- Als erste neue Objektportierung in diesem Schritt wurden zwei alte VED-Objekttypen in den Qt/Core-Port uebernommen:
+  - TDVecBSPLine
+  - TDVecBezierCurve
+- Vorgabe:
+  - VED-treu portieren.
+  - Keine Mathematik veraendern.
+  - Keine Architektur veraendern.
+  - Nur moderne C++ Syntax und Anpassung an die vorhandenen Core-Port-Konventionen.
+
+Umsetzung TDVecBezierCurve
+- Neue Klasse TDVecBezierCurve in vec_data.h/vec_data.cpp.
+- Typ bleibt VECOBJ_BZC.
+- Portierte Kernfunktionen:
+  - Draw
+  - DrawNodes
+  - GetFrame
+  - GetMidpoint
+  - Clone
+  - HitTest / HitTestNode
+  - PointOnNode
+  - MoveBy
+  - MoveNode
+  - ToScale
+  - Rotate
+  - TransformToPoint
+  - TransformToOrigin
+  - ComputeCurve
+  - PointOnControle
+  - MoveControle
+  - ShowControls/ShowPolygon
+  - Resolution
+  - InsertPoint/AppendPoint/RemovePoint/ClearPoints/GetPoint/CountPoints
+- Die Bezier-Kurve verwendet weiter die alte Bernstein-Polynom-Berechnung.
+
+Umsetzung TDVecBSPLine
+- Neue Klasse TDVecBSPLine in vec_data.h/vec_data.cpp.
+- Typ bleibt VECOBJ_BSPLINE.
+- Portierte Kernfunktionen:
+  - Draw
+  - DrawNodes
+  - GetFrame
+  - GetFrameMin
+  - GetMidpoint
+  - Clone
+  - HitTest / HitTestNode
+  - PointOnNode
+  - MoveBy
+  - MoveNode
+  - ToScale
+  - Rotate
+  - TransformToPoint
+  - TransformToOrigin
+  - ComputeCurve
+  - GenerateKnot
+  - ComputeBasisFuns
+  - GetCurvePoint
+  - PointOnControle
+  - PointAfterControle
+  - MoveControle
+  - ShowControls/ShowPolygon
+  - Degree
+  - Resolution
+  - InsertPoint/AppendPoint/RemovePoint/ClearPoints/GetPoint/CountPoints
+- Die B-Spline-Berechnung bleibt an der alten VED-Logik orientiert:
+  - uniformer Knot Vector
+  - gleiche Degree/Resolution Defaults
+  - Basisfunktionen im Objekt selbst
+
+Mathlib-Erweiterung
+- Die alte Bezier-Hilfsmathematik wurde in den Core uebernommen:
+  - computeCoefficients
+  - computePoint
+  - Bezier
+- Die Formel wurde nicht veraendert.
+- Speicherverwaltung wurde modernisiert:
+  - statt malloc/free wird std::vector<int> verwendet
+  - die alten Funktionssignaturen mit int* bleiben erhalten
+
+Anpassung an aktuelle Core-Port-Konventionen
+- Clone liefert std::unique_ptr<TDVecObject>.
+- Move/Scale/Rotate-Methoden liefern bool wie die bisherigen portierten Objekte.
+- TDMatPointsArray ist im Port std::vector<TDMatPoint>.
+- Draw/HitTest verwenden die bestehende TDGraphicEngine-Schnittstelle.
+- Es wurden keine neuen Architektur-Abstraktionen eingefuehrt.
+
+Strukturkorrektur nach Review
+- Die erste Umsetzung hatte TDVecBSPLine und TDVecBezierCurve noch in vec_data.h/vec_data.cpp eingetragen.
+- Das war funktional, aber nicht VED-treu genug und verschlimmerte die ohnehin zu grosse vec_data-Einheit.
+- Korrektur:
+  - vec_data.h wurde entfernt.
+  - vec_data.cpp wurde entfernt.
+  - vec_object.h/vec_object.cpp enthalten nur noch TDVecObject und TDVecLineHitKind/TDVecLineHitResult.
+  - Jede konkrete Objektklasse liegt in eigener Einheit:
+    - vec_line.h / vec_line.cpp
+    - vec_ellipse.h / vec_ellipse.cpp
+    - vec_polygon.h / vec_polygon.cpp
+    - vec_polygon_area.h / vec_polygon_area.cpp
+    - vec_polycurve.h / vec_polycurve.cpp
+    - vec_polycurve_area.h / vec_polycurve_area.cpp
+    - vec_bezier_curve.h / vec_bezier_curve.cpp
+    - vec_bspline.h / vec_bspline.cpp
+    - vec_group.h / vec_group.cpp
+  - Gemeinsame nicht-fachliche Hilfstypen/Funktionen liegen im selben Ordner:
+    - vec_contur_point.h fuer TDMatConturPoint/TDConturPointType
+    - vec_object_geometry.h / vec_object_geometry.cpp fuer bisher anonyme Geometrie-Helfer
+- Es gibt keinen Umbrella-Header als Ersatz fuer vec_data.h.
+- Alle bisherigen Includes auf vec_data.h wurden durch konkrete Includes ersetzt.
+- CMakeLists.txt listet alle neuen Objektdateien explizit auf.
+
+Tests
+- Neuer Test ved_core_curve_object_tests:
+  - prueft TDVecBezierCurve:
+    - Typ VECOBJ_BZC
+    - Punktanzahl
+    - Frame
+    - ComputeCurve/HitTest
+    - Clone
+    - MoveBy
+  - prueft TDVecBSPLine:
+    - Typ VECOBJ_BSPLINE
+    - Default Degree/Resolution
+    - Frame
+    - GenerateKnot/ComputeCurve/HitTest
+    - Clone
+    - MoveControle
+
+Dateien fuer Teil A
+- src/ved_core/vecobjects/vec_object.h
+- src/ved_core/vecobjects/vec_object.cpp
+- src/ved_core/vecobjects/vec_object_geometry.h
+- src/ved_core/vecobjects/vec_object_geometry.cpp
+- src/ved_core/vecobjects/vec_contur_point.h
+- src/ved_core/vecobjects/vec_line.h
+- src/ved_core/vecobjects/vec_line.cpp
+- src/ved_core/vecobjects/vec_ellipse.h
+- src/ved_core/vecobjects/vec_ellipse.cpp
+- src/ved_core/vecobjects/vec_polygon.h
+- src/ved_core/vecobjects/vec_polygon.cpp
+- src/ved_core/vecobjects/vec_polygon_area.h
+- src/ved_core/vecobjects/vec_polygon_area.cpp
+- src/ved_core/vecobjects/vec_polycurve.h
+- src/ved_core/vecobjects/vec_polycurve.cpp
+- src/ved_core/vecobjects/vec_polycurve_area.h
+- src/ved_core/vecobjects/vec_polycurve_area.cpp
+- src/ved_core/vecobjects/vec_bezier_curve.h
+- src/ved_core/vecobjects/vec_bezier_curve.cpp
+- src/ved_core/vecobjects/vec_bspline.h
+- src/ved_core/vecobjects/vec_bspline.cpp
+- src/ved_core/vecobjects/vec_group.h
+- src/ved_core/vecobjects/vec_group.cpp
+- src/ved_core/mathlib/vec_math_base.h
+- src/ved_core/mathlib/vec_math_base.cpp
+- tests/ved_core_curve_object_tests.cpp
+- CMakeLists.txt
+
+Offene Operationen fuer diese beiden Typen
+- VOC_BEZIERCURVE_CONTROLPOINT
+- VOC_BSPLINE_CONTROLPOINT
+- VOM_MOVE_BSPLINE_CONTROLPOINT
+  - im alten Code fuer VECOBJ_BZC und VECOBJ_BSPLINE relevant
+- VOM_MODIFY_CURVE_ATTRIBUTE
+  - im alten Code fuer VECOBJ_BSPLINE und VECOBJ_POLYCURVE relevant
+- Danach fuer B-Spline zusaetzlich:
+  - VOM_INSERT_NODE
+  - VOM_DELETE_NODE
+
+Teil B - Neues Polygon-Vorschauverhalten
+========================================
+
+Ziel
+- Fehler/UX-Unterschied im Qt-Port bei VOC_POLYGON_SMARTLINE klaeren und dokumentieren.
+- Beim Zeichnen eines Polygons wurde waehrend MouseMove nur die aktuelle Shadow-Line gezeigt.
+- Die gesamte temporaere Polygon-Geometrie erschien erst nach linkem MouseUp bzw. endgueltig nach rechter Maustaste.
+- Polycurve verhaelt sich besser: waehrend MouseMove wird die gesamte bisherige Kurve plus aktueller bewegter Endpunkt als temporaeres Objekt gezeigt.
+
+Einordnung gegen altes Borland-VED
+- Das alte Borland-VED zeigte bei TDVOCPolygonSmartline::OPMouseMove ebenfalls nur eine temporaere Linie:
+  - mMatLine.Create(mPtBeg, mPtEnd)
+  - mpTmpLine->SetLine(&mMatLine)
+  - mpVecEditCad->TmpAppend(mpTmpLine, true)
+- Bei MouseUp wurde im alten VED ein temporaeres TDVecPolygon aus den bisher gesetzten Punkten erzeugt.
+- Die neue Port-Aenderung ist deshalb nicht 1:1 Borland-identisch.
+- Sie ist eine bewusste Verbesserung und Angleichung an das bereits richtige Polycurve-Verhalten im Port.
+
+Aenderung im Port
+- TDVOCPolygonSmartline::OPMouseMove erzeugt nicht mehr eine temporaere TDVecLine.
+- Stattdessen wird ein temporaeres TDVecPolygon aus allen bisherigen Punkten erzeugt.
+- Danach wird der aktuelle bewegte Endpunkt als zusaetzlicher Punkt angehaengt.
+- Dieses temporaere Polygon wird mit TmpAppend(..., true) gezeichnet.
+- Damit sieht der Benutzer waehrend der Operation die gesamte entstehende Polygon-Geometrie, nicht nur die letzte Strecke.
+
+Entfernte Altlast
+- Die Membervariable mMatLine in TDVOCPolygonSmartline war danach unbenutzt und wurde entfernt.
+- Copy Constructor und Assignment wurden entsprechend bereinigt.
+
+Dateien
+- src/ved_core/operations/voc_polygon_smartline.h
+- src/ved_core/operations/voc_polygon_smartline.cpp
+- tests/ved_core_polygon_polycurve_operation_tests.cpp
+
+Test
+- Neuer gezielter Test in ved_core_polygon_polycurve_operation_tests:
+  - startet VOC_POLYGON_SMARTLINE
+  - setzt zwei Polygonpunkte
+  - bewegt die Maus fuer den naechsten Punkt
+  - prueft ueber eine RecordingGraphicEngine, dass die Vorschau als Polygon gezeichnet wird
+  - prueft, dass nicht mehr nur eine temporaere Linie gezeichnet wird
+  - prueft, dass der bewegte Endpunkt in der temporaeren Polygon-Geometrie enthalten ist
+
+Verifikation fuer Step 2.018
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 12/12 Tests bestanden.
+
+Hinweis
+- Falls spaeter strikt Borland-treues Verhalten fuer VOC_POLYGON_SMARTLINE verlangt wird, muss diese Aenderung bewusst zurueckgenommen werden.
+- Aktueller Stand folgt der getroffenen Produktentscheidung: Polygon-Vorschau soll wie Polycurve die gesamte temporaere Geometrie zeigen.

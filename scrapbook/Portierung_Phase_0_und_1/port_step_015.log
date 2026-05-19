@@ -1,0 +1,177 @@
+Port Step 015 - Screen-GraphicEngine in Qt-Zielstruktur ueberfuehren
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Fortsetzung aus `port_step_014.log`:
+
+```text
+Die alte Screen-GraphicEngine detailliert in eine Qt-Zielarchitektur
+ueberfuehren:
+
+1. `TDGraphicEngine`-Interface als Teil von `ved_core` kompilierbar machen.
+2. Die nicht-GDI Semantik aus `TDGraphicEngineScreen` identifizieren:
+   Zoom, Pan, Margin, ViewRange, WorkSpaceRange, Real/Screen-Konvertierung,
+   Sichtbarkeit und Toleranzen.
+3. Eine Qt-Screen-Engine planen, die diese Semantik erhaelt und nur die
+   eigentlichen Zeichenoperationen von GDI auf `QPainter` ersetzt.
+4. Danach erst `QVedWidget` mit GraphicEngine und
+   `TDVecViewInterfaceTemplate<QVedWidget>` verbinden.
+```
+
+Wichtige Vorgabe
+----------------
+Alte Borland-Dateien werden zuerst aus `borland_ved/src/comp` in die neue
+Projektstruktur kopiert und dort bearbeitet. `borland_ved` bleibt Referenz und
+wurde nicht geaendert.
+
+Kopierte Legacy-Dateien
+-----------------------
+Aus `borland_ved/src/comp` nach `src/ved_core`:
+
+```text
+gengine/vec_graphic_engine.h
+gengine/vec_graphic_engine.cpp
+mathlib/vec_math_base.h
+mathlib/vec_math_graph2d.h
+mathlib/vec_math_graph2d.cpp
+main/vec_maindef.h
+main/vec_view_interface.h
+main/vec_view_interface.cpp
+```
+
+Die kopierten Dateien wurden nach UTF-8 konvertiert. `vec_math_base.h` ist fuer
+diesen ersten Schritt bewusst ein kleiner portabler Ausschnitt, weil die volle
+Mathlib noch viele spaetere Objekt- und Operationstypen nachzieht.
+
+Neue Dateien
+------------
+```text
+src/ved_core/mathlib/vec_math_base.cpp
+src/ved_core/gengine/vec_graphic_engine_screen_state.h
+src/ved_core/gengine/vec_graphic_engine_screen_state.cpp
+src/ved_qt/gengine/vec_graphic_engine_qt.h
+src/ved_qt/gengine/vec_graphic_engine_qt.cpp
+```
+
+`TDGraphicEngineScreenState`
+----------------------------
+Die nicht-GDI-Semantik aus
+`borland_ved/src/comp/gengine/vec_graphic_engine_screen.cpp` wurde in eine
+portable Core-Klasse herausgezogen:
+
+```text
+RealToXPos / RealToYPos
+RealToXVal / RealToYVal
+ScreenToXPos / ScreenToYPos
+ScreenToXVal / ScreenToYVal
+SetPanX/Y, ChangePanX/Y, GetPanX/Y
+SetMarginX/Y, GetMarginX/Y
+SetWorldSpaceRange
+SetWorkSpaceRange
+SetViewRange
+SetZoom / GetZoom / SetZoomToRealSize
+SetViewSize
+SetDpi
+IsRectVisible
+GetMouseTolerance
+GetMinimumDistance
+```
+
+Korrektur gegenueber dem ersten Entwurf: `RealToXVal`, `RealToYVal`,
+`ScreenToXVal` und `ScreenToYVal` benutzen wie VED `fabs(realPerPixel*)`, damit
+Strecken/Toleranzen auch bei invertierten Achsen positiv bleiben.
+
+Qt-Screen-Engine
+----------------
+`TDGraphicEngineQt` ist die Qt-Zielklasse fuer die Screen-GraphicEngine:
+
+```cpp
+class TDGraphicEngineQt final : public TDGraphicEngine
+```
+
+Sie erhaelt die alte `TDGraphicEngine`-Schnittstelle, delegiert Zoom, Pan,
+Margin, Range, Sichtbarkeit und Toleranzen an `TDGraphicEngineScreenState` und
+ersetzt nur die Ausgabeoperationen durch `QPainter`.
+
+Aktuell implementierte QPainter-Ausgabe:
+
+```text
+DrawLine
+DrawEllipse
+DrawRectangle
+DrawPolygon
+DrawLineOutLine
+DrawConstructPolygon
+DrawBoxOutLine
+DrawNode
+DrawFrame
+```
+
+Das ist noch nicht die vollstaendige alte GDI-Ausgabe. Hilfsfunktionen wie
+`DrawGrid`, Hilfslinien, ROP2/XOR-Verhalten und Node-ImageList muessen im
+naechsten Schritt gezielt aus `TDGraphicEngineScreen` nachgezogen werden.
+
+View-Interface-Anbindung
+------------------------
+`TDVecViewInterfaceBase` und `TDVecViewInterfaceTemplate<T>` wurden aus VED
+nach `src/ved_core/main` kopiert und kompilierbar gemacht. Dabei wurden nur
+Portierungsdetails bereinigt:
+
+```text
+- mpGE wird im Konstruktor initialisiert
+- Template-Callback-Zeiger werden im Konstruktor initialisiert
+- ungueltige moderne C++-Warnungen durch alte if(!this)-Guards entfernt
+```
+
+`QVedWidget` besitzt jetzt:
+
+```cpp
+TDGraphicEngineQt graphicEngine_;
+TDVecViewInterfaceTemplate<QVedWidget> viewInterface_;
+```
+
+Die Callbacks fuer Refresh, Cursor, Zoom, Sichtbarkeit, Maus-Toleranz und
+Minimaldistanz sind registriert. `QVedWidget` bleibt trotzdem eine duenne
+Qt-View-Schicht: es implementiert kein eigenes Koordinatensystem, kein eigenes
+Panning und keine eigene Real/Screen-Transformation.
+
+CMake
+-----
+Neue Targets:
+
+```text
+ved_core
+ved_qt_gengine
+```
+
+`ved_qt_app` linkt jetzt gegen `ved_qt_gengine`, das wiederum gegen `ved_core`
+und `Qt6::Gui` linkt.
+
+Ausgefuehrter Build
+-------------------
+```bash
+cmake -S . -B build/qt
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
+
+Naechster sinnvoller Schritt
+----------------------------
+Die noch fehlenden Screen-spezifischen GDI-Operationen aus
+`TDGraphicEngineScreen` in `TDGraphicEngineQt` nachziehen:
+
+1. `DrawGrid`, `DrawAuxLineX/Y`, `DrawAuxLine` und `DrawMouseToleranz`
+   identifizieren und 1:1 semantisch nach Qt uebertragen.
+2. ROP2/XOR- bzw. Outline-Verhalten pruefen und eine passende Qt-
+   CompositionMode-Loesung waehlen.
+3. Node-Bilder/ImageList aus VED analysieren und als Qt-Resource-Strategie
+   vorbereiten.
+4. Danach `TDVecEditCad::PaintContentOnView()` aus der kopierten Core-Struktur
+   anbinden, sodass die Engine nicht nur existiert, sondern von der alten CAD-
+   Logik benutzt wird.

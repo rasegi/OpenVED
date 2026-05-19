@@ -1,0 +1,162 @@
+Port Step 2_006 - Node-Move fuer Line in VOM_SELECT_MOVE_NODE_OBJECT
+Datum: 2026-05-14
+
+Ziel
+----
+Die direkte Bearbeitungsoperation aus Step 005 um Punkt-Aenderung erweitern:
+
+- Start-/Endpunkt einer selektierten Linie ueber Mouse-Toleranz treffen.
+- Bei gedrueckt gehaltener linker Maustaste einen Outline-Schatten bewegen.
+- Erst bei MouseUp die echte Line-Node-Koordinate im Modell schreiben.
+
+Fachliche Basis
+---------------
+Alte VED-Operation `VOM_SELECT_MOVE_NODE_OBJECT` unterscheidet beim MouseDown:
+
+- Treffer auf Objektkoerper -> Object-Move
+- Treffer auf Node -> Node-Move
+- kein Treffer -> Lasso/Area-Select
+
+Die Bewegung wird erst nach MouseTolerance + 2 Pixel als echte Drag-Aktion
+gewertet. Waehrend Drag wird ein temporaeres Objekt als Schatten/Outline
+gezeichnet. Das echte Objekt wird erst auf MouseUp geaendert.
+
+Geaenderte Dateien
+------------------
+src/ved_core/operations/vom_select_move_node_object.h
+src/ved_core/operations/vom_select_move_node_object.cpp
+tests/ved_core_select_move_operation_tests.cpp
+scrapbook/port_step_2_006.log
+
+Implementierung
+---------------
+`TDVOMSelectMoveNodeObject` hat jetzt zusaetzlichen Node-Move-Zustand:
+
+- `mNodeKind`
+- `mbMoveNode`
+
+MouseDown:
+
+- nutzt weiterhin `FindHit()` und damit die in Step 004 korrigierte
+  Pixel-Toleranzbasis.
+- `StartNode` und `EndNode` einer `TDVecLine` starten Node-Move.
+- Treffer auf Midpoint oder Body starten weiter Object-Move.
+- Shift-Treffer bleibt reine Auswahl-Ergaenzung und startet keinen Move.
+
+MouseMove:
+
+- Node-Move und Object-Move nutzen dieselbe Bewegungstoleranz:
+  `GetMouseTolerance() + 2` Pixel.
+- Bei Node-Move wird eine temporaere Kopie der Line erzeugt.
+- Auf dieser Kopie wird `MoveNode(mNodeKind, point)` ausgefuehrt.
+- Die Kopie wird per `TmpAppend(tempLine, true)` als Outline gezeichnet.
+- Das echte Modellobjekt bleibt waehrend MouseMove unveraendert.
+
+MouseUp:
+
+- Wenn ein Node-Move-Schatten aktiv war, wird auf der echten Line
+  `MoveNode(mNodeKind, point)` ausgefuehrt.
+- Danach `TmpClear()`, Cursor zurueck auf Default, `ViewsRefresh()`.
+- Ohne Drag bleibt die Linie unveraendert.
+
+Tests
+-----
+Erweitert:
+
+tests/ved_core_select_move_operation_tests.cpp
+
+Neu geprueft wird:
+
+- Start-Node-Drag veraendert das echte Objekt vor MouseUp nicht.
+- Start-Node wird bei MouseUp auf die neue Koordinate geschrieben.
+- End-Node-Drag veraendert das echte Objekt vor MouseUp nicht.
+- End-Node wird bei MouseUp auf die neue Koordinate geschrieben.
+- Bestehende Object-Move- und Area-Select-Tests bleiben aktiv.
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+4/4 Tests bestanden:
+
+- `ved_core_line_tests`
+- `ved_core_model_tests`
+- `ved_core_select_operation_tests`
+- `ved_core_select_move_operation_tests`
+
+Bekannte Grenzen
+----------------
+Noch nicht Bestandteil von Step 006:
+
+- separater `VOM_MOVE_OBJECT`
+- Delete-Operation ueber Toolbar/Keyboard
+- Persistenz Save/Load
+- manuelle GUI-Verifikation des Node-Schattenverhaltens
+
+Korrektur: Group-Move bei Mehrfachauswahl
+-----------------------------------------
+Nach manuellem Befund war das Verhalten anders als alte VED:
+
+- Mehrere Objekte waren durch Shift oder Area-Select selektiert.
+- Klick/Drag auf eines dieser selektierten Objekte bewegte nur das zuletzt
+  angeklickte Objekt.
+
+Ursache:
+
+- Die portierte Operation rief bei jedem Treffer ohne Shift direkt
+  `SelectOnlyObject(hitIndex)` auf.
+- Dadurch wurde die Mehrfachauswahl verworfen, bevor Drag starten konnte.
+- In alter VED prueft `VOM_SELECT_MOVE_NODE_OBJECT` vorher:
+  - Wenn mehr als ein Objekt selektiert ist
+  - und das getroffene Objekt bereits selektiert ist
+  - dann wird `MakeTempGroupFromSelected()` genutzt und `mbGroupMove` gesetzt.
+  - Auf MouseUp wird `MoveSelectedObjects(delta)` ausgefuehrt.
+
+Nachgezogene Kernlogik:
+
+- `TDVecModel::IsObjectSelected(index)`
+- `TDVecModel::GetSelectedObjects()`
+- `TDVecModel::MoveSelectedObjects(dx, dy)`
+
+Nachgezogene Temp-Draw-Unterstuetzung:
+
+- `TDVecEditCad` kann jetzt mehrere temporaere Objekte halten.
+- `TmpAppend()` bleibt fuer Single-Temp kompatibel und ersetzt die Temp-Liste.
+- `TmpAppendAdditional()` fuegt weitere Temp-Objekte hinzu.
+
+Nachgezogene Operation-Logik:
+
+- Wenn `CountSelectedObjects() > 1` und das getroffene Objekt bereits selektiert
+  ist, bleibt die Auswahl erhalten.
+- `mbGroupMove` wird gesetzt.
+- MouseMove erzeugt temporaere Outline-Lines fuer alle selektierten Lines.
+- MouseUp ruft `MoveSelectedObjects(delta)` auf.
+- Wenn das getroffene Objekt nicht Teil der Mehrfachauswahl ist, gilt wie in
+  alter VED: es wird nur dieses Objekt selektiert.
+
+Tests wurden erweitert:
+
+- Area-Select selektiert zwei Lines.
+- Klick/Drag auf eine der selektierten Lines veraendert vor MouseUp kein echtes
+  Objekt.
+- MouseUp verschiebt beide selektierten Lines gemeinsam.
+
+Naechster Schritt
+-----------------
+`port_step_2_007`: Delete fuer selektierte Line.
+
+Geplante Inhalte:
+
+- Delete-Toolbar/Keyboard an Operation-Pipeline anbinden
+- selektierte Objekte aus Modell entfernen
+- Tests fuer DeleteSelectedObjects ueber Operation/Editor-Pfad

@@ -1,0 +1,588 @@
+Port Step 2.019 - Restliche non-text VOC/VOM Operationen portiert
+Datum: 2026-05-15
+
+Ziel
+====
+
+- Den Rest der alten Borland-VED `VOC`- und `VOM`-Operationen in den Qt/Core-Port holen, soweit sie nicht Text betreffen.
+- Textoperationen bleiben bewusst ausgenommen:
+  - VOC_VECTEXT
+  - VOC_VECFRAMETEXT_EMPTY
+  - VOM_VECTEXT
+- Grundlage bleiben die Borland-Dateien unter `borland_ved/src/comp/operations`.
+
+Portierte Create-Operationen
+============================
+
+- VOC_CIRCLE_DIAGONAL
+  - neue Dateien:
+    - src/ved_core/operations/voc_circle_diagonal.h
+    - src/ved_core/operations/voc_circle_diagonal.cpp
+  - erzeugt einen Kreis ueber Diagonalpunkte wie im alten VED.
+  - setzt `ResizeProportional` am erzeugten Kreisobjekt wie Borland.
+
+- VOC_BEZIERCURVE_CONTROLPOINT
+  - neue Dateien:
+    - src/ved_core/operations/voc_beziercurve_controlpoint.h
+    - src/ved_core/operations/voc_beziercurve_controlpoint.cpp
+  - erzeugt `TDVecBezierCurve` aus Kontrollpunkten.
+  - rechter Mausklick beendet die Operation.
+  - temporaere Hilfslinie und Kontrollpolygon bleiben erhalten.
+
+- VOC_BSPLINE_CONTROLPOINT
+  - neue Dateien:
+    - src/ved_core/operations/voc_bspline_controlpoint.h
+    - src/ved_core/operations/voc_bspline_controlpoint.cpp
+  - erzeugt `TDVecBSPLine` aus Kontrollpunkten.
+  - ExtVar fuer Degree, Resolution, ShowControls, ShowPolygon wurde portiert.
+  - Defaultwerte bleiben:
+    - Degree = 2
+    - Resolution = 50
+    - ShowControls = true
+    - ShowPolygon = true
+
+Portierte Modify-Operationen
+============================
+
+- VOM_MOVE_NODE
+  - neue Dateien:
+    - src/ved_core/operations/vom_move_node.h
+    - src/ved_core/operations/vom_move_node.cpp
+  - verschiebt Nodes des selektierten Objekts.
+  - waehrend Drag wird ein temporaeres Shadow-Objekt angezeigt.
+
+- VOM_MOVE_BSPLINE_CONTROLPOINT
+  - neue Dateien:
+    - src/ved_core/operations/vom_move_bspline_controlpoint.h
+    - src/ved_core/operations/vom_move_bspline_controlpoint.cpp
+  - relevant fuer:
+    - VECOBJ_BZC
+    - VECOBJ_BSPLINE
+  - verschiebt Kontrollpunkte von Bezier- und B-Spline-Kurven.
+
+- VOM_INSERT_NODE
+  - neue Dateien:
+    - src/ved_core/operations/vom_insert_node.h
+    - src/ved_core/operations/vom_insert_node.cpp
+  - relevant fuer:
+    - VECOBJ_POL
+    - VECOBJ_POLAREA
+    - VECOBJ_BSPLINE
+    - VECOBJ_POLYCURVE
+    - VECOBJ_POLYCURVEAREA
+  - fuegt einen neuen Punkt nach dem getroffenen Segment ein.
+  - bei PolyCurve/PolyCurveArea bleibt `Ctrl` fuer QSpline-Punkte erhalten.
+
+- VOM_DELETE_NODE
+  - neue Dateien:
+    - src/ved_core/operations/vom_delete_node.h
+    - src/ved_core/operations/vom_delete_node.cpp
+  - relevant fuer:
+    - VECOBJ_POL
+    - VECOBJ_POLAREA
+    - VECOBJ_BSPLINE
+    - VECOBJ_POLYCURVE
+    - VECOBJ_POLYCURVEAREA
+  - beachtet Mindestpunktzahlen wie im alten VED.
+
+- VOM_MODIFY_CURVE_ATTRIBUTE
+  - neue Dateien:
+    - src/ved_core/operations/vom_modify_curve_attribute.h
+    - src/ved_core/operations/vom_modify_curve_attribute.cpp
+  - relevant fuer:
+    - VECOBJ_BSPLINE
+    - VECOBJ_POLYCURVE
+  - ExtVar fuer Degree, Resolution, ShowControls, ShowPolygon, CopyFlag und ObjectType wurde portiert.
+
+- VOM_ROTATE_OBJECT_ACTIVEPOINT
+  - neue Dateien:
+    - src/ved_core/operations/vom_rotate_object_activepoint.h
+    - src/ved_core/operations/vom_rotate_object_activepoint.cpp
+  - rotiert selektierte Objekte um einen per Maus gewaehlten Pivotpunkt.
+  - ExtVar fuer Winkel, CopyFlag, SelectFlag, PivotPoint und NumberOfObjects wurde portiert.
+
+- VOM_SCALE_OBJECT_3POINT
+  - neue Dateien:
+    - src/ved_core/operations/vom_scale_3point.h
+    - src/ved_core/operations/vom_scale_3point.cpp
+  - skaliert ein selektiertes Objekt ueber drei Punkte.
+
+- VOM_INSERT_OBJECTS
+  - neue Dateien:
+    - src/ved_core/operations/vom_insert_objects.h
+    - src/ved_core/operations/vom_insert_objects.cpp
+  - ExtVar kann Objekte sammeln, temporaer anzeigen und bei MouseUp ins Model einfuegen.
+
+Core-Ergaenzung
+===============
+
+- `TDVecObject` hat wieder die alte VED-Eigenschaft `ResizeProportional`:
+  - SetResizeProportional(bool)
+  - GetResizeProportional()
+- Grund:
+  - `VOC_CIRCLE_DIAGONAL` setzt diese Eigenschaft im alten VED.
+  - Textobjekte verwenden sie spaeter ebenfalls.
+
+Integration
+===========
+
+- CMakeLists.txt listet alle neuen Operationen explizit.
+- TDViewOperationManager erzeugt und erkennt jetzt die neuen non-text Operationen.
+- Toolbar-Aktionen fuer bisher tote Buttons wurden verbunden:
+  - VOC_BEZIERCURVE_CONTROLPOINT
+  - VOC_BSPLINE_CONTROLPOINT
+  - VOC_CIRCLE_DIAGONAL
+  - VOM_MOVE_NODE
+  - VOM_MOVE_BSPLINE_CONTROLPOINT
+  - VOM_INSERT_NODE
+  - VOM_DELETE_NODE
+  - VOM_ROTATE_OBJECT_ACTIVEPOINT
+  - VOM_SCALE_OBJECT_3POINT
+  - VOM_MODIFY_CURVE_ATTRIBUTE
+
+Bewusste Einordnung
+===================
+
+- Ziel war, den alten Funktionsumfang in den Core zu holen und die Buttons wirksam zu machen.
+- Einige Implementierungen sind an die bereits modernisierte Core-API angepasst:
+  - `std::unique_ptr`
+  - `TDVecModel::GetSelectedObject()`
+  - `HitTest` statt alter `PointOnObject`-Direktaufrufe
+  - `std::vector` statt alter Pointer-Arrays
+- Die mathematische Objektlogik wurde nicht neu erfunden; sie ruft die vorhandenen Objektmethoden wie `MoveNode`, `MoveControle`, `InsertPoint`, `RemovePoint`, `Rotate`, `ToScale`.
+
+Verifikation
+============
+
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 12/12 Tests bestanden.
+
+Ausgeschlossen
+==============
+
+- Text bleibt fuer den naechsten Themenblock offen:
+  - TDVecText
+  - TDVecFrameText
+  - VOC_VECTEXT
+  - VOC_VECFRAMETEXT_EMPTY
+  - VOM_VECTEXT
+- Vor Text wird noch das FontProvider-/VFN-/Plugin-Thema separat behandelt, siehe open story:
+  - scrapbook/open_stories/story_font_provider_truetype_converter_plugin.md
+
+Nachkorrektur: Node-Operationen / Mouse-Dispatch
+================================================
+
+Problem
+-------
+
+- Die Node-Operationen waren zwar in der Toolbar angebunden, aber der Port hatte im OperationManager nicht das alte VED-Verhalten komplett uebernommen.
+- Konkret fehlten:
+  - `Initialize()` direkt nach dem Erzeugen einer Operation in `TDViewOperationManager::SetOperation`.
+  - Das alte Fallback: Operationen im Zustand `OSTATE_NEEDSELECTED` werden sofort durch `TDVOMSelectMoveNodeObject` ersetzt.
+  - Die alte Mouse-Dispatch-Regel:
+    - `MouseDown` geht nur an RUNNING/STARTED/FINISHED/ABORTED.
+    - `MouseUp` geht nur an RUNNING.
+    - `MouseMove` geht nur an RUNNING.
+- Dadurch konnten VOM-Node-Operationen ohne passende vorherige Selektion in einem Zustand bleiben, in dem Mausaktionen praktisch nicht sinnvoll verarbeitet wurden.
+
+Korrektur
+---------
+
+- `TDViewOperationManager` wurde wieder naeher an Borland-VED gebracht:
+  - `SetOperation()` ruft jetzt `Initialize()` auf.
+  - `OSTATE_NEEDSELECTED` aktiviert automatisch `TDVOMSelectMoveNodeObject`.
+  - MouseDown/MouseUp/MouseMove dispatchen wieder zustandsabhaengig wie im alten VED.
+- `TDVOMInsertNode` nutzt fuer die echte UI/GraphicEngine-Strecke wieder Objektmethoden `PointAfterNode`.
+- Dafuer wurden `PointAfterNode(TDGraphicEngine*, double, double, long)` ergaenzt in:
+  - `TDVecPolygon`
+  - `TDVecPolygonArea`
+  - `TDVecPolyCurve`
+  - `TDVecPolyCurveArea`
+
+Tests
+-----
+
+- Neuer Test:
+  - `tests/ved_core_node_operation_tests.cpp`
+- Geprueft wird:
+  - `VOM_MOVE_NODE`, `VOM_INSERT_NODE`, `VOM_DELETE_NODE` fallen ohne Auswahl auf `VOM_SELECT_MOVE_NODE_OBJECT` zurueck.
+  - Move Node verschiebt einen Polygon-Knoten.
+  - Insert Node fuegt einen Polygon-Knoten ein.
+  - Delete Node entfernt einen PolyCurve-Knoten.
+- Bestehende Tests fuer das fruehere, nicht VED-treue NEEDSELECTED-Verhalten wurden auf das alte VED-Fallback angepasst.
+
+Verifikation
+------------
+
+- cmake --build cmake-build-debug
+- ctest --test-dir cmake-build-debug --output-on-failure
+- Ergebnis: 13/13 Tests bestanden.
+
+Nachkorrektur: Node-Toolbar-Icon und Node-Cursor
+================================================
+
+- `VOM_MOVE_NODE` verwendete in der Toolbar dasselbe Icon wie `VOM_CHANGE_EDGE_ROUND_NODE`.
+- Fuer `VOM_MOVE_NODE` wurde ein eigenes Toolbar-Icon ergaenzt:
+  - `src/app/resources/toolbar/move_node.bmp`
+- Neue/zu verwendende Cursor-Ressourcen:
+  - `src/app/resources/cursors/crosshair_none.png`
+  - `src/app/resources/cursors/crosshair_plus.png`
+  - `src/app/resources/cursors/crosshair_minus.png`
+- Neue Core-Cursor:
+  - `VECVIEW_SIMPLE_CROSS`
+  - `VECVIEW_CROSS_PLUS`
+  - `VECVIEW_CROSS_MINUS`
+- Verwendung:
+  - `VOM_MOVE_NODE` nutzt `VECVIEW_SIMPLE_CROSS` mit `crosshair_none.png`
+  - `VOM_INSERT_NODE` nutzt `VECVIEW_CROSS_PLUS` mit `crosshair_plus.png`
+  - `VOM_DELETE_NODE` nutzt `VECVIEW_CROSS_MINUS` mit `crosshair_minus.png`
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 13/13 Tests bestanden.
+
+Nachkorrektur: Interaktive DrawNode-Punkte fuer VOM_SCALE_OBJECT_3POINT
+========================================================================
+
+- Analyse:
+  - Borland-VED zeichnet bei `VOM_SCALE_OBJECT_3POINT` nach Klick 1 und Klick 2 jeweils `mpVecEditCad->DrawNode(...)`.
+  - Diese Aufrufe waren im Port noch vorhanden.
+  - In Qt waren sie aber wirkungslos, weil `TDGraphicEngineQt::DrawNode()` nur waehrend `QVedWidget::paintEvent()` einen aktiven `QPainter` besitzt.
+- Korrektur:
+  - Die alte direkte `TDVecEditCad::DrawNode()`-Schnittstelle wurde im aktiven Port durch `AppendTempNode()` ersetzt.
+  - `AppendTempNode()` speichert interaktive Nodes nun in einer temporaeren Liste.
+  - `TDVecEditCad::PaintContentOnView()` zeichnet diese interaktiven Nodes bei jedem Paint mit.
+  - `TmpClear()` und `IniInteractivePoints()` loeschen die interaktiven Nodes wieder.
+  - `VOM_SCALE_OBJECT_3POINT` und `VOC_CIRCLE_EDGE` nutzen diese klare Temp-Node-API.
+- Neuer Test:
+  - `tests/ved_core_scale_3point_operation_tests.cpp`
+  - prueft:
+    - nach erstem Scale-Klick wird 1 interaktiver Node gezeichnet.
+    - nach zweitem Scale-Klick werden 2 interaktive Nodes gezeichnet.
+    - waehrend Preview bleiben beide Nodes sichtbar.
+    - nach Abschluss werden sie geloescht.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Auswahlrechteck nicht waehrend Move/Node-Drag zeigen
+===================================================================
+
+- Ursache:
+  - Das Rechteck kam nicht aus `TDVecLine::Draw()` oder aus der Objekt-Geometrie.
+  - `QVedWidget` startete bei jedem linken Mausklick im Select-Modus pauschal
+    `selectionAreaActive_`.
+  - Das Auswahlrechteck wird in `drawSelectionAreaMarker()` nur unterdrueckt,
+    wenn der sichtbare Cursor `VECVIEW_DOCK` ist.
+  - `updateMouseToleranceCrossCursor()` setzte aber bei aktiver
+    Mouse-Tolerance-Cross-Option nach jedem MouseMove den Cursor der Select-
+    Operationen wieder auf `VECVIEW_SIMPLE_CROSS`.
+  - Dadurch wurde das Auswahlrechteck auch waehrend Objekt- oder Node-Drag
+    gezeichnet und sah wie ein zusaetzliches temporaeres Rechteck aus.
+- Korrektur:
+  - `updateMouseToleranceCrossCursor()` ueberschreibt `VECVIEW_DOCK` und
+    `VECVIEW_NO` nicht mehr.
+  - Der Core darf damit waehrend laufendem Drag den Move/No-Cursor behalten.
+  - Nach Ende der Operation kann der Select-Cursor wieder auf `crosshair_none`
+    gesetzt werden, wenn die Toolbar-Option aktiv ist.
+- Test:
+  - `ved_qt_gengine_outline_tests` prueft zusaetzlich, dass eine einzelne
+    Qt-Outline-Linie selbst keine entfernten Rechteck-Pixel erzeugt.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 15/15 Tests bestanden.
+
+Nachkorrektur: Mouse-Tolerance-Cross setzt Select-Cursor
+========================================================
+
+- Wenn `cmdShowMouseToleranceCross` aktiv ist, setzen die beiden Select-
+  Operationen nun den sichtbaren Cursor auf `VECVIEW_SIMPLE_CROSS`
+  (`crosshair_none.png`):
+  - `VOM_SELECT_MOVE_NODE_OBJECT`
+  - `VOM_SELECTMOVE_OBJECT_SCALE_FRAME`
+- Wenn die Option deaktiviert wird, wechseln diese Select-Operationen wieder
+  auf `VECVIEW_CURSOR_DEFAULT`.
+- Die Umschaltung wird nach Toolbar-Toggle, Operation-Wechsel und MouseMove
+  angewendet, damit die Select-Hover-Logik den Cursor nicht direkt wieder
+  ueberschreibt.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Curve-Dock nur bei Curve-Operationen sichtbar
+============================================================
+
+- Das Curve-Dock wird nun nach Wiederherstellen des Fensterzustands und bei
+  Operation-Wechsel zentral ausgeblendet, wenn die aktive Operation nicht eine
+  dieser Operationen ist:
+  - `VOC_POLYCURVE`
+  - `VOC_BSPLINE_CONTROLPOINT`
+  - `VOM_MODIFY_CURVE_ATTRIBUTE`
+- Damit bleibt der Dialog fuer Create PolyCurve/B-Spline nur sichtbar, solange
+  man in der jeweiligen Operation ist.
+- Nachkorrektur:
+  - Die Sichtbarkeitspruefung darf beim App-Start nicht von `isVisible()`
+    abhaengen, weil das MainWindow beim Restore noch nicht sichtbar ist.
+  - Das Dock wird nun auch vor dem ersten Anzeigen explizit verborgen, wenn
+    keine passende Operation aktiv ist.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: VOM_MODIFY_CURVE_ATTRIBUTE nur bei passender Einzelauswahl
+=========================================================================
+
+- Borland-Verhalten:
+  - `VOM_MODIFY_CURVE_ATTRIBUTE` ist nur aktiv, wenn genau ein Objekt
+    selektiert ist und dieses Objekt ein `VECOBJ_BSPLINE` oder
+    `VECOBJ_POLYCURVE` ist.
+  - Beim Start wird der Curve-Dialog mit den Attributen des selektierten
+    Objekts gefuellt.
+- Qt-Port:
+  - Die Toolbar-Aktion `Modify Curve Attribute` wird nun nur bei genau einem
+    selektierten B-Spline oder PolyCurve aktiviert.
+  - Das vorhandene Curve-Dock wird wiederverwendet:
+    - `BSPLine ändern` fuer B-Spline
+    - `PolyCurve ändern` fuer PolyCurve
+  - Bei B-Spline ist `degree` aktiv.
+  - Bei PolyCurve ist `degree` deaktiviert.
+  - `resolution`, `show polygon`, `show controls` und `copy` werden aus
+    `TDVOMModifyCurveAttributeExtVar` geladen und beim Apply wieder dorthin
+    geschrieben.
+- Die Core-Operation selbst war bereits vorhanden; angepasst wurde die
+  Qt-Aktivierung und Dock-Anbindung.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Crosshair-Cursor fuer weitere Modify-Operationen
+================================================================
+
+- Folgende Operationen verwenden nun ebenfalls `VECVIEW_SIMPLE_CROSS`
+  (`crosshair_none.png`) statt Default-Cursor:
+  - `VOM_MOVE_BSPLINE_CONTROLPOINT`
+  - `VOM_ROTATE_OBJECT_ACTIVEPOINT`
+  - `VOM_SCALE_OBJECT_3POINT`
+  - `VOM_CHANGE_EDGE_ROUND_NODE`
+- Die Operationslogik wurde nicht geaendert.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: B-Spline Insert-Node Preview synchron zum Ergebnis
+=================================================================
+
+- Problem:
+  - Bei `VOM_INSERT_NODE` auf einem B-Spline war das temporaere Spiegelobjekt
+    waehrend der Mausbewegung anders als das finale Ergebnis nach MouseUp.
+  - Das finale Ergebnis war korrekt.
+- Ursache:
+  - Borland-VED bewegt in der Preview fuer B-Spline den eingefuegten
+    Kontrollpunkt mit `MoveControle(miVorNode+1, dx, dy)`.
+  - Der Qt-Port verwendete generisch `MoveNode(...)`.
+  - Bei `TDVecBSPLine` bedeutet `MoveNode(...)` Frame-Node/Resize-Logik,
+    nicht Kontrollpunktbewegung.
+- Korrektur:
+  - `VOM_INSERT_NODE::OPMouseMove()` verwendet fuer `TDVecBSPLine` nun
+    `MoveControle(miVorNode+1, dx, dy)`.
+  - Alle anderen Objekttypen behalten die bisherige `MoveNode(...)`-Preview.
+- Test:
+  - `ved_core_polygon_polycurve_operation_tests` prueft nun:
+    - B-Spline selektieren.
+    - Node zwischen zwei Kontrollpunkten einfuegen.
+    - Preview waehrend MouseMove zeichnen.
+    - Finales MouseUp ausfuehren.
+    - Preview-Kontrollpunkt und final eingefuegter Kontrollpunkt muessen
+      identisch sein.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: VOC_BSPLINE_CONTROLPOINT Crash und Curve-Dock
+============================================================
+
+- Problem:
+  - `VOC_BSPLINE_CONTROLPOINT` stuerzte nach dem ersten Klick bzw. beim ersten
+    Preview ab.
+- Ursache:
+  - Wie im alten Borland-Code wurde in `OPMouseMove()` ein temporaeres
+    `TDVecBSPLine` erzeugt, an `TmpAppend()` uebergeben und danach wieder
+    freigegeben.
+  - Im Qt-Port speichert `TDVecEditCad::TmpAppend()` den Pointer bis zum
+    naechsten Paint. Dadurch wurde ein dangling pointer gezeichnet.
+- Korrektur:
+  - Die temporaere Preview-BSpline ist nun ein Member der Operation:
+    `mpTmpObjBSPLine`.
+  - Dadurch bleibt das temporaere Objekt fuer den Paint gueltig.
+  - Die B-Spline-Mathematik und die alte Punkt-/Knotenlogik wurden nicht
+    geaendert.
+- Dialog/Dock:
+  - Borland nutzte fuer B-Spline dasselbe Curve-Dialogfenster wie PolyCurve.
+  - Der Qt-Port nutzt nun ebenfalls das vorhandene Curve-Dock.
+  - Bei `VOC_BSPLINE_CONTROLPOINT`:
+    - Titel: `BSPLine zeichnen`
+    - `degree` ist aktiv.
+    - `resolution` wird wie im Borland-Dialog mit `200` vorbelegt.
+    - `show polygon` und `show controls` werden in die B-Spline-ExtVar
+      uebernommen.
+  - Bei `VOC_POLYCURVE` bleibt `degree` deaktiviert.
+- Test:
+  - `ved_core_polygon_polycurve_operation_tests` prueft nun, dass die
+    B-Spline-Preview nach erstem Klick und Mausbewegung ein gueltiges
+    temporaeres Kontrollpolygon zeichnet.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Bezier-Preview zeigt gesamtes Kontrollpolygon
+============================================================
+
+- Problem:
+  - Nach dem Crash-Fix blieb `VOC_BEZIERCURVE_CONTROLPOINT` stabil.
+  - Waehrend der Mausbewegung war aber nur die letzte Hilfslinie sichtbar.
+- Ursache:
+  - `OPMouseUp()` setzte das temporaere Kontrollpolygon.
+  - `OPMouseMove()` ersetzte dieses temporaere Objekt danach wieder durch
+    `mpTmpLine`.
+  - Dadurch zeichnete `TDVecEditCad` nur die letzte bewegte Linie, nicht das
+    gesamte Kontrollpolygon.
+- Korrektur:
+  - `OPMouseMove()` baut nun wie `VOC_POLYGON_SMARTLINE` ein temporaeres
+    Kontrollpolygon aus allen gesetzten Punkten plus aktuellem bewegtem
+    Endpunkt.
+  - Die Bezier-Mathematik und das finale Erzeugen des Objekts wurden nicht
+    geaendert.
+- Test:
+  - `ved_core_polygon_polycurve_operation_tests` prueft nun, dass die
+    Bezier-Preview bei Mausbewegung ein Polygon mit festen Punkten plus
+    bewegtem Endpunkt zeichnet und nicht nur eine einzelne Linie.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Crash nach erstem Klick in VOC_BEZIERCURVE_CONTROLPOINT
+======================================================================
+
+- Problem:
+  - `VOC_BEZIERCURVE_CONTROLPOINT` stuerzte in der Qt-App reproduzierbar nach
+    dem ersten Klick ab.
+- Ursache:
+  - Beim linken MouseUp wurde ein lokales `TDVecPolygon` fuer die temporaere
+    Kontrollpolygon-Anzeige erzeugt.
+  - Dieses lokale Objekt wurde mit `TmpAppend(pTmpPolygon.get(), false)` an
+    `TDVecEditCad` uebergeben.
+  - `TDVecEditCad::TmpAppend()` speichert den Pointer fuer den naechsten Paint.
+  - Nach Rueckkehr aus `OPMouseUp()` war das lokale `TDVecPolygon` aber bereits
+    zerstoert. Der naechste Paint benutzte damit einen dangling pointer.
+- Korrektur:
+  - Das temporaere Bezier-Kontrollpolygon ist jetzt ein Member der Operation:
+    `mpTmpPolygon`.
+  - Damit bleibt das Objekt so lange gueltig, wie `TDVecEditCad` den
+    temporaeren Pointer verwenden kann.
+  - Mathematik, Punktlogik und Abschlussverhalten der Operation wurden nicht
+    geaendert.
+- Test:
+  - `ved_core_polygon_polycurve_operation_tests` prueft nun:
+    - Bezier-Operation aktivieren.
+    - Erster linker Klick.
+    - Danach `PaintContentOnView()` ausfuehren.
+    - Das temporaere Kontrollpolygon muss noch gueltig gezeichnet werden.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.
+
+Nachkorrektur: Insert/Delete Node nur bei passender Einzelauswahl
+=================================================================
+
+- `VOM_INSERT_NODE` und `VOM_DELETE_NODE` sind in der Toolbar nur noch aktiv, wenn exakt ein Objekt selektiert ist.
+- Das selektierte Objekt muss einer von diesen Typen sein:
+  - `VECOBJ_POL`
+  - `VECOBJ_POLAREA`
+  - `VECOBJ_BSPLINE`
+  - `VECOBJ_POLYCURVE`
+  - `VECOBJ_POLYCURVEAREA`
+- Bei keiner Auswahl, Mehrfachauswahl oder nicht passendem Objekttyp werden die beiden Aktionen deaktiviert.
+- Falls eine der Aktionen aktiv war und die Auswahl ungueltig wird, wird die Aktion abgewahlt und der Modify-Modus verlassen.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 13/13 Tests bestanden.
+
+Nachkorrektur: Plus/Minus-Zeichen in Crosshair-Cursor
+=====================================================
+
+- `crosshair_plus.png` und `crosshair_minus.png` wurden aus `crosshair_none.png` neu aufgebaut.
+- Das Plus bzw. Minus sitzt unten rechts.
+- Farbe und Strichstaerke entsprechen dem Crosshair:
+  - `#000000`
+  - 1px
+  - Gray+Alpha PNG wie `crosshair_none.png`
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 13/13 Tests bestanden.
+
+Nachkorrektur: ModifyObject ueberschreibt Node-Cursor nicht mehr
+================================================================
+
+- `VOM_MOVE_NODE` setzte den Core-Cursor bereits auf `VECVIEW_SIMPLE_CROSS`.
+- Der sichtbare Qt-Cursor wurde aber direkt danach durch `QVedWidget::setInteractionMode(ModifyObject)` wieder auf `VECVIEW_CURSOR_DEFAULT` gesetzt.
+- `InteractionMode::ModifyObject` setzt nun keinen pauschalen Default-Cursor mehr.
+- Damit bleibt der Cursor erhalten, den die aktive Modify-Operation ueber `TDVecEditCad::UseCursor()` gesetzt hat:
+  - Move Node: `crosshair_none.png`
+  - Insert Node: `crosshair_plus.png`
+  - Delete Node: `crosshair_minus.png`
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 13/13 Tests bestanden.
+
+Nachkorrektur: VOM_ROTATE_OBJECT_ACTIVEPOINT Dialog-Aequivalent
+===============================================================
+
+- Borland-VED hatte fuer `VOM_ROTATE_OBJECT_ACTIVEPOINT` eine GUI-Seite/einen Dialog,
+  der die externen Variablen der Operation gesetzt hat:
+  - Winkel
+  - Copy
+  - Select Copy
+  - Pivot-Anzeige
+- Der Qt-Port hat nun ein Dock `Objekt drehen`, analog zum bereits portierten
+  PolyCurve-Dock.
+- Toolbar:
+  - Klick auf `Rotate Object` aktiviert weiterhin `VOM_ROTATE_OBJECT_ACTIVEPOINT`.
+  - Danach wird das Rotate-Dock automatisch geoeffnet.
+- Dock-Felder:
+  - `angle`
+  - `copy`
+  - `select copy`
+  - Anzahl selektierter Objekte
+  - aktueller Pivotpunkt
+- VED-treue Winkeluebergabe:
+  - Borland setzte `SetAngle((-1) * Eingabewinkel)`.
+  - Der Qt-Port uebernimmt dieses Vorzeichenverhalten.
+- Operation-Anbindung:
+  - Das Dock schreibt in `TDVOMRotateObjectActPtExtVar`.
+  - Danach wird `SendUpdateToParrentOP()` aufgerufen.
+  - Damit setzt `TDVOMRotateObjectActivePoint::ExtVarIsChanged()` wie im alten VED
+    `mbRotateOK = true` und die Mausbewegung zeigt die Rotation als Preview.
+- Pivot-Anzeige:
+  - Bei Mausbewegung aktualisiert die Qt-Seite die im Dock angezeigten
+    Pivot-Koordinaten aus `TDVOMRotateObjectActPtExtVar`.
+- Cancel/Schliessen:
+  - Schliessen des Docks oder Cancel setzt die Operation auf
+    `VOM_SELECT_MOVE_NODE_OBJECT` zurueck.
+- Verifikation:
+  - cmake --build cmake-build-debug
+  - ctest --test-dir cmake-build-debug --output-on-failure
+  - Ergebnis: 14/14 Tests bestanden.

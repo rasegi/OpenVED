@@ -1,0 +1,221 @@
+Port Step 2_004 - Echte Select-Operation fuer Line
+Datum: 2026-05-14
+
+Ziel
+----
+`VOM_SELECT_OBJECT` als echte Operation in die reduzierte VED-Pipeline
+einbinden. Select soll nicht nur den Cursor setzen, sondern ueber die
+Operation-Pipeline das Modell selektieren.
+
+Geaenderte Dateien
+------------------
+CMakeLists.txt
+src/app/MainWindow.cpp
+src/app/QVedWidget.cpp
+src/ved_core/operations/vom_select_object.h
+src/ved_core/operations/vom_select_object.cpp
+src/ved_core/operations/vop_manager.cpp
+tests/ved_core_select_operation_tests.cpp
+scrapbook/port_step_2_004.log
+
+Fachliche Aenderungen
+---------------------
+Neue Operation:
+
+- `TDVOMSelectObject`
+
+Verhalten:
+
+- Konstruktor setzt `OSTATE_RUNNING`.
+- Konstruktor setzt `VECVIEW_CURSOR_DEFAULT`, wie im alten VED.
+- Linksklick sucht ueber `TDVecModel::FindObjectAt(point, tolerance)`.
+- Kein Treffer: `DeselectAll()`.
+- Treffer ohne Shift: `SelectOnlyObject(index)`.
+- Treffer mit Shift: `SelectObject(index)`.
+- Nach jeder Auswahl wird `ViewsRefresh()` aufgerufen.
+- Wenn Linksklick auf leerer Flaeche beginnt, startet Area-Select.
+- Linke Maustaste halten und ziehen selektiert alle Objekte im Rechteck.
+- Shift + Area-Select ergaenzt die bestehende Auswahl.
+- Einfacher Leer-Klick deselektiert auf MouseUp.
+
+Korrektur nach manuellem Befund:
+
+- Mouse-Tolerance aus `TDGraphicEngine::GetMouseTolerance()` ist Pixelwert.
+- Die Modellsuche arbeitet in Real-Koordinaten.
+- `TDVOMSelectObject` rechnet die Pixel-Tolerance jetzt ueber
+  `ScreenToXVal()`/`ScreenToYVal()` in Real-Tolerance um.
+
+Operation-Manager
+-----------------
+`TDViewOperationManager::SetOperation()` erzeugt jetzt:
+
+- `VOC_LINE` -> `TDVOCLine`
+- `VOM_SELECT_OBJECT` -> `TDVOMSelectObject`
+
+`GetAktiveOperationType()` erkennt jetzt auch `TDVOMSelectObject`.
+
+Qt-Adapter
+----------
+Die Select-Toolbar-Action startet jetzt wirklich:
+
+`editor_->SetOperation(VOM_SELECT_OBJECT)`
+
+Danach setzt sie den Canvas-Modus `SelectObject`.
+
+`QVedWidget` leitet Mouse-Events im Modus `SelectObject` wie bei `CreateLine`
+an die Operation-Pipeline weiter.
+
+Fuer Area-Select zeigt `QVedWidget` waehrend Drag ein Lasso-Rechteck als
+View-Overlay. Die fachliche Auswahl bleibt in `TDVOMSelectObject`.
+
+Toolbar-Check-State:
+
+- Aktive checkbare Toolbar-Actions sind per `QToolButton:checked` deutlich
+  hervorgehoben.
+
+Cursor-/GridLock-Semantik
+-------------------------
+Alte VED-Semantik wurde beruecksichtigt:
+
+- Select-Operation nutzt `VECVIEW_CURSOR_DEFAULT`.
+- `VECVIEW_CURSOR_DEFAULT` wird im Qt-Adapter auf `select_object.png` gemappt.
+- `VECVIEW_SELECT_OBJECT` bleibt ebenfalls auf `select_object.png` gemappt.
+- Der Mouse-Toleranzkreis bleibt Overlay ueber `DrawMouseToleranz()`.
+- GridLock-Snap wurde bereits in Step 2_003 auf alle Operationen erweitert,
+  daher bekommt Select dieselbe gesnappte Real-Koordinate wie der sichtbare
+  Toleranzkreis.
+
+Nachanalyse Mouse-Toleranzkreis / Select-Fachlogik
+--------------------------------------------------
+Wichtiger Befund aus alter VED:
+
+- `TSCVecView::MouseMove()` berechnet die Real-Koordinate aus der Mausposition.
+- Danach wird bei `GridLock` mit `AdjustToGrid()` auf den Grid-Punkt gesetzt.
+- Ohne `GridLock` wird `AdjustToQuntifier()` verwendet, also bleibt der Marker
+  fachlich an der aktuellen/quantisierten Mausposition.
+- Nur bei `VECVIEW_CURSOR_DEFAULT` wird `DrawMouseToleranz()` gezeichnet.
+- `TDVOMSelectObject` setzt im Konstruktor bewusst `VECVIEW_CURSOR_DEFAULT`.
+- `VECVIEW_CURSOR_DEFAULT` und `VECVIEW_SELECT_OBJECT` zeigen im alten VED beide
+  auf den Select-Cursor.
+- `TDGraphicEngineScreen::DrawMouseToleranz()` zeichnet einen runden Rahmen um
+  die Cursor-Koordinate mit `mnMouseTolerance` Pixeln.
+- `TDVecLine::PointOnObject()` wandelt Maus und Linie in Screen-Pixel um und
+  prueft dort gegen denselben Pixelwert `pGE->GetMouseTolerance()`.
+- `TDVecLine::PointOnNode()` prueft ebenfalls in Screen-Pixeln gegen diese
+  Toleranz.
+
+Fachliche Bedeutung:
+
+- Der sichtbare Kreis ist die Selektionstoleranz.
+- Liegt ein Punkt/Segment eines Elements innerhalb dieses Kreises, darf Select
+  treffen.
+- Mit GridLock ist der Kreis auf dem eingerasteten Grid-Punkt fixiert.
+- Ohne GridLock schwebt der Kreis mit der Mausposition.
+
+Aktueller Qt-Port vor dieser Korrektur:
+
+- `QVedWidget::operationPoint()` snappt bei GridLock korrekt auf Grid.
+- `TDVOMSelectObject` nutzt `GetMouseTolerance()` und rechnet Pixel nach Real
+  um.
+- `QVedWidget::drawSnapMouseMarker()` zeichnet den Kreis aktuell aber nur,
+  wenn `gridLock_ == true`.
+- Ohne GridLock fehlt also der schwebende Toleranzkreis.
+- Der aktuelle Hit-Test in `TDVecLine::HitTest()` arbeitet in Real-Koordinaten.
+  Das ist funktional nahe dran, aber nicht identisch zur alten VED, weil die
+  alte VED Linie, Maus und Toleranz in Screen-Pixeln vergleicht.
+
+Konsequenz fuer naechste Korrektur:
+
+- Marker-Anzeige muss auch ohne GridLock aktiv sein:
+  - mit GridLock: Kreiszentrum = gesnappter Grid-Punkt
+  - ohne GridLock: Kreiszentrum = aktuelle Maus-/Quantifier-Position
+- Hit-Test und sichtbarer Kreis sollten wieder dieselbe Grundlage haben.
+- Fuer VED-treue Selektion ist die beste Loesung ein screen-space Hit-Test fuer
+  Line/Node nach altem `PointOnObject()`/`PointOnNode()`-Prinzip oder ein klar
+  konservativer Pixel-zu-Real-Adapter, der den Kreis nicht kleiner macht.
+- Diese Abweichung ist machbar und sollte vor Move/Node-Edit bereinigt werden,
+  sonst werden spaetere Operationen dieselbe falsche Toleranzbasis erben.
+
+Umsetzung der Korrektur:
+
+- `QVedWidget` merkt den aktiven View-Cursor.
+- Der Mouse-Toleranzkreis wird jetzt fuer Select/Default-Cursor gezeichnet,
+  nicht mehr nur bei aktivem GridLock.
+- Mit GridLock bleibt das Kreiszentrum durch `operationPoint()` /
+  `snapPointToGrid()` auf dem Grid-Punkt.
+- Ohne GridLock liegt das Kreiszentrum auf der aktuellen Mausposition und
+  schwebt damit wie in der alten VED.
+- `TDVecLine` hat jetzt zusaetzliche HitTests mit `TDGraphicEngine*` und
+  Pixel-Tolerance:
+  - `HitTest(pGE, point, tolerancePixels)`
+  - `HitTestLine(pGE, point, tolerancePixels)`
+  - `HitTestNode(pGE, point, tolerancePixels)`
+- Diese HitTests wandeln Maus, Line-Endpunkte und Nodes in Screen-Pixel um und
+  vergleichen dort gegen denselben Pixelwert wie `DrawMouseToleranz()`.
+- `TDVecModel` bietet passende screen-space Varianten von `FindObjectAt()` und
+  `FindNodeAt()`.
+- `TDVOMSelectObject` benutzt bei vorhandener aktiver GraphicEngine jetzt
+  `FindObjectAt(graphicEngine, point, graphicEngine->GetMouseTolerance())`.
+- Nur wenn keine aktive GraphicEngine vorhanden ist, bleibt der Real-Koordinaten
+  Fallback aktiv. Dieser nutzt jetzt konservativ `max(ScreenToXVal,
+  ScreenToYVal)` statt Durchschnitt, damit die Toleranz nicht kleiner als der
+  sichtbare Kreis wird.
+- `ved_core_line_tests` prueft nun explizit anisotrope Skalierung: bei
+  ungleicher X/Y-Real-Pixel-Skalierung muss ein Punkt innerhalb des sichtbaren
+  Pixelkreises treffen und ausserhalb verfehlen.
+
+Test / Verifikation
+-------------------
+Neu hinzugefuegt:
+
+tests/ved_core_select_operation_tests.cpp
+
+Geprueft wird:
+
+- `SetOperation(VOM_SELECT_OBJECT)` aktiviert die Select-Operation.
+- Linksklick auf Linie selektiert genau diese Linie.
+- Shift-Linksklick auf zweite Linie ergaenzt die Auswahl.
+- Klick ins Leere deselektiert alle Objekte.
+- Drag-Rechteck selektiert Objekte im Bereich.
+- Shift-Drag-Rechteck ergaenzt die Auswahl.
+
+Ausgefuehrt:
+
+cmake --build cmake-build-debug
+
+Ergebnis:
+
+Build erfolgreich.
+
+Ausgefuehrt:
+
+ctest --test-dir cmake-build-debug --output-on-failure
+
+Ergebnis:
+
+3/3 Tests bestanden:
+
+- `ved_core_line_tests`
+- `ved_core_model_tests`
+- `ved_core_select_operation_tests`
+
+Bekannte Grenzen
+----------------
+Select ist jetzt echt inklusive Area-Select, aber die Minimal-VED ist noch
+nicht editierbar:
+
+- Move-Object fehlt.
+- Move-Node fehlt.
+- Delete-Object fehlt.
+- Persistenz fehlt.
+
+Naechster Schritt
+-----------------
+`port_step_2_005`: Move-Operation fuer Line.
+
+Geplante Inhalte:
+
+- `VOM_MOVE_OBJECT` minimal fuer `TDVecLine`
+- selektierte Linie per Drag verschieben
+- Mouse-Tolerance und GridLock weiter ueber View/Operation-Koordinaten nutzen
+- Refresh waehrend Drag

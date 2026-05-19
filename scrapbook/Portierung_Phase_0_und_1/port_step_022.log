@@ -1,0 +1,58 @@
+Port Step 022 - Grid-Zeichnung bei ZoomOut begrenzen
+Datum: 2026-05-14
+
+Ausloeser
+---------
+Das unendliche Grid war nach `port_step_020` zwar beim Scrollen sichtbar, aber
+bei starkem ZoomOut wurden zu viele Grid-Punkte gezeichnet. Dadurch wurde die
+Canvas dunkel und die Anwendung wurde belastet.
+
+Legacy-Prinzip
+--------------
+Die alte VED-Engine hatte in `TDGraphicEngineScreen::DrawGrid(...)` bereits
+ein Resolution-Limit:
+
+```cpp
+if(RealToXVal(nSubDist) < nResLimit || RealToYVal(nSubDist) < nResLimit)
+    return;
+```
+
+Das verhindert Grid-Zeichnung, wenn der Abstand zwischen Grid-Punkten in Pixeln
+zu klein wird.
+
+Qt-Korrektur
+------------
+`QVedWidget::drawGrid()` nutzt jetzt wieder ein Resolution-Limit:
+
+```text
+kGridResolutionLimit = 3
+```
+
+Die Qt-View ist etwas robuster als die alte Funktion:
+
+```text
+1. Subgrid zeichnen, wenn dessen Pixelabstand gross genug ist.
+2. Sonst Hauptgrid zeichnen, wenn dessen Pixelabstand gross genug ist.
+3. Sonst gar kein Grid zeichnen.
+```
+
+Zusätzlich gibt es eine harte Sicherheitsgrenze:
+
+```text
+kMaxGridPointsPerPaint = 20000
+```
+
+Wenn ein Paint-Vorgang mehr Grid-Punkte erzeugen wuerde, wird das Grid nicht
+gezeichnet.
+
+Build
+-----
+```bash
+cmake --build build/qt --target ved_qt_app
+```
+
+Ergebnis:
+
+```text
+[100%] Built target ved_qt_app
+```
