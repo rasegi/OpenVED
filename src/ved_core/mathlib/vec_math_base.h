@@ -2,7 +2,6 @@
 // HEADER: Geometrischae Datentypen
 //
 // Qt port note:
-// This file was copied from borland_ved/src/comp/mathlib/vec_math_base.h.
 // For the first ved_core GraphicEngine step it intentionally keeps only the
 // geometry types required by TDGraphicEngine and the screen-engine state.
 // The full mathlib port will replace this reduced slice when vecobjects and

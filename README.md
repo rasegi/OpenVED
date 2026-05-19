@@ -27,7 +27,7 @@ The original codebase has been refactored to remove historical ballast, obsolete
 
 ## Features
 
-* Modern C++20 implementation
+* Modern C++23 implementation
 * Qt6-based rendering and UI integration
 * 2D vector primitives
 * Geometry operations
@@ -113,7 +113,7 @@ OpenVED is released under the MIT License.
 
 This project uses Qt under the LGPL license, as well as FreeType and HarfBuzz under their respective licenses.
 
-See LICENSE and LICENSES/ for details.
+See LICENSE for details.
 
 ---
 
