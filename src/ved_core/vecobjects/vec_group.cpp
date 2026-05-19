@@ -7,6 +7,7 @@
 #include "vec_object_geometry.h"
 #include "vec_ellipse.h"
 
+#include <array>
 #include <algorithm>
 #include <cstddef>
 #include <cmath>

@@ -5,6 +5,7 @@
 #include "ved_binary_writer.h"
 #include "vec_object_geometry.h"
 
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <limits>

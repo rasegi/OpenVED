@@ -10,8 +10,56 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(MSVC AND DEFINED VCPKG_TARGET_TRIPLET AND VCPKG_TARGET_TRIPLET MATCHES "-static$")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(PkgConfig QUIET)
+
+if(MSVC AND "$ENV{INCLUDE}" STREQUAL "")
+    get_filename_component(VED_MSVC_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(VED_MSVC_HOST_DIR "${VED_MSVC_BIN_DIR}" DIRECTORY)
+    get_filename_component(VED_MSVC_BIN_ROOT "${VED_MSVC_HOST_DIR}" DIRECTORY)
+    get_filename_component(VED_MSVC_TOOLSET_DIR "${VED_MSVC_BIN_ROOT}" DIRECTORY)
+
+    file(GLOB VED_WINDOWS_KITS_VERSIONS
+        LIST_DIRECTORIES TRUE
+        "C:/Program Files (x86)/Windows Kits/10/Include/*"
+    )
+    if(VED_WINDOWS_KITS_VERSIONS)
+        list(SORT VED_WINDOWS_KITS_VERSIONS COMPARE NATURAL ORDER DESCENDING)
+        list(GET VED_WINDOWS_KITS_VERSIONS 0 VED_WINDOWS_KITS_VERSION_DIR)
+        get_filename_component(VED_WINDOWS_KITS_VERSION "${VED_WINDOWS_KITS_VERSION_DIR}" NAME)
+
+        include_directories(SYSTEM
+            "${VED_MSVC_TOOLSET_DIR}/include"
+            "C:/Program Files (x86)/Windows Kits/10/Include/${VED_WINDOWS_KITS_VERSION}/shared"
+            "C:/Program Files (x86)/Windows Kits/10/Include/${VED_WINDOWS_KITS_VERSION}/ucrt"
+            "C:/Program Files (x86)/Windows Kits/10/Include/${VED_WINDOWS_KITS_VERSION}/um"
+            "C:/Program Files (x86)/Windows Kits/10/Include/${VED_WINDOWS_KITS_VERSION}/winrt"
+            "C:/Program Files (x86)/Windows Kits/10/Include/${VED_WINDOWS_KITS_VERSION}/cppwinrt"
+        )
+    endif()
+endif()
+
+if(MSVC AND "$ENV{LIB}" STREQUAL "")
+    file(GLOB VED_WINDOWS_KITS_LIB_VERSIONS
+        LIST_DIRECTORIES TRUE
+        "C:/Program Files (x86)/Windows Kits/10/Lib/*"
+    )
+    if(VED_WINDOWS_KITS_LIB_VERSIONS)
+        list(SORT VED_WINDOWS_KITS_LIB_VERSIONS COMPARE NATURAL ORDER DESCENDING)
+        list(GET VED_WINDOWS_KITS_LIB_VERSIONS 0 VED_WINDOWS_KITS_LIB_VERSION_DIR)
+        get_filename_component(VED_WINDOWS_KITS_LIB_VERSION "${VED_WINDOWS_KITS_LIB_VERSION_DIR}" NAME)
+
+        link_directories(
+            "${VED_MSVC_TOOLSET_DIR}/lib/x64"
+            "C:/Program Files (x86)/Windows Kits/10/Lib/${VED_WINDOWS_KITS_LIB_VERSION}/um/x64"
+            "C:/Program Files (x86)/Windows Kits/10/Lib/${VED_WINDOWS_KITS_LIB_VERSION}/ucrt/x64"
+        )
+    endif()
+endif()
 
 set(VED_FREETYPE_STATIC_DEPS)
 set(VED_FREETYPE_INCLUDE_DIRS)
@@ -23,59 +71,69 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(third_party/freetype EXCLUDE_FROM_ALL)
     set(VED_FREETYPE_LINK_TARGET freetype)
-else()
-    if(PkgConfig_FOUND)
-        pkg_check_modules(FREETYPE2 freetype2)
+elseif(NOT VED_FREETYPE_LINK_TARGET)
+    find_package(freetype CONFIG QUIET)
+    if(TARGET Freetype::Freetype)
+        set(VED_FREETYPE_LINK_TARGET Freetype::Freetype)
+    else()
+        if(PkgConfig_FOUND)
+            pkg_check_modules(FREETYPE2 freetype2)
+        endif()
+        find_path(FREETYPE_INCLUDE_DIR
+            NAMES ft2build.h
+            PATHS ${FREETYPE2_INCLUDE_DIRS}
+            PATH_SUFFIXES freetype2
+        )
+        find_library(FREETYPE_STATIC_LIBRARY
+            NAMES libfreetype.a freetype
+            PATHS ${FREETYPE2_LIBRARY_DIRS}
+        )
+        if(NOT FREETYPE_INCLUDE_DIR OR NOT FREETYPE_STATIC_LIBRARY)
+            message(FATAL_ERROR "Static FreeType development files not found. Install a static freetype2 package or vendor FreeType under third_party/freetype.")
+        endif()
+        if(PkgConfig_FOUND)
+            pkg_check_modules(FREETYPE2_STATIC freetype2)
+            set(VED_FREETYPE_STATIC_DEPS ${FREETYPE2_STATIC_STATIC_LIBRARIES})
+            list(REMOVE_ITEM VED_FREETYPE_STATIC_DEPS freetype)
+            set(VED_FREETYPE_LIBRARY_DIRS ${FREETYPE2_STATIC_STATIC_LIBRARY_DIRS})
+        endif()
+        set(VED_FREETYPE_LINK_TARGET ${FREETYPE_STATIC_LIBRARY})
+        set(VED_FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIR})
     endif()
-    find_path(FREETYPE_INCLUDE_DIR
-        NAMES ft2build.h
-        PATHS ${FREETYPE2_INCLUDE_DIRS}
-        PATH_SUFFIXES freetype2
-    )
-    find_library(FREETYPE_STATIC_LIBRARY
-        NAMES libfreetype.a freetype
-        PATHS ${FREETYPE2_LIBRARY_DIRS}
-    )
-    if(NOT FREETYPE_INCLUDE_DIR OR NOT FREETYPE_STATIC_LIBRARY)
-        message(FATAL_ERROR "Static FreeType development files not found. Install a static freetype2 package or vendor FreeType under third_party/freetype.")
-    endif()
-    if(PkgConfig_FOUND)
-        pkg_check_modules(FREETYPE2_STATIC freetype2)
-        set(VED_FREETYPE_STATIC_DEPS ${FREETYPE2_STATIC_STATIC_LIBRARIES})
-        list(REMOVE_ITEM VED_FREETYPE_STATIC_DEPS freetype)
-        set(VED_FREETYPE_LIBRARY_DIRS ${FREETYPE2_STATIC_STATIC_LIBRARY_DIRS})
-    endif()
-    set(VED_FREETYPE_LINK_TARGET ${FREETYPE_STATIC_LIBRARY})
-    set(VED_FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIR})
 endif()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/harfbuzz/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(third_party/harfbuzz EXCLUDE_FROM_ALL)
     set(VED_HARFBUZZ_LINK_TARGET harfbuzz)
-else()
-    if(PkgConfig_FOUND)
-        pkg_check_modules(HARFBUZZ harfbuzz)
+elseif(NOT VED_HARFBUZZ_LINK_TARGET)
+    find_package(harfbuzz CONFIG QUIET)
+    if(TARGET harfbuzz::harfbuzz)
+        set(VED_HARFBUZZ_LINK_TARGET harfbuzz::harfbuzz)
+    else()
+        if(PkgConfig_FOUND)
+            pkg_check_modules(HARFBUZZ harfbuzz)
+        endif()
+        find_path(HARFBUZZ_INCLUDE_DIR
+            NAMES hb.h
+            PATHS ${HARFBUZZ_INCLUDE_DIRS}
+            PATH_SUFFIXES harfbuzz
+        )
+        find_library(HARFBUZZ_STATIC_LIBRARY
+            NAMES libharfbuzz.a harfbuzz
+            PATHS ${HARFBUZZ_LIBRARY_DIRS}
+        )
+        if(NOT HARFBUZZ_INCLUDE_DIR OR NOT HARFBUZZ_STATIC_LIBRARY)
+            message(FATAL_ERROR "Static HarfBuzz development files not found. Install a static harfbuzz package or vendor HarfBuzz under third_party/harfbuzz.")
+        endif()
+        if(PkgConfig_FOUND)
+            pkg_check_modules(HARFBUZZ_STATIC harfbuzz)
+            set(VED_HARFBUZZ_STATIC_DEPS ${HARFBUZZ_STATIC_STATIC_LIBRARIES})
+            list(REMOVE_ITEM VED_HARFBUZZ_STATIC_DEPS harfbuzz freetype)
+            set(VED_HARFBUZZ_LIBRARY_DIRS ${HARFBUZZ_STATIC_STATIC_LIBRARY_DIRS})
+        endif()
+        set(VED_HARFBUZZ_LINK_TARGET ${HARFBUZZ_STATIC_LIBRARY})
+        set(VED_HARFBUZZ_INCLUDE_DIRS ${HARFBUZZ_INCLUDE_DIR})
     endif()
-    find_path(HARFBUZZ_INCLUDE_DIR
-        NAMES hb.h
-        PATHS ${HARFBUZZ_INCLUDE_DIRS}
-        PATH_SUFFIXES harfbuzz
-    )
-    find_library(HARFBUZZ_STATIC_LIBRARY
-        NAMES libharfbuzz.a harfbuzz
-        PATHS ${HARFBUZZ_LIBRARY_DIRS}
-    )
-    if(NOT HARFBUZZ_INCLUDE_DIR OR NOT HARFBUZZ_STATIC_LIBRARY)
-        message(FATAL_ERROR "Static HarfBuzz development files not found. Install a static harfbuzz package or vendor HarfBuzz under third_party/harfbuzz.")
-    endif()
-    if(PkgConfig_FOUND)
-        pkg_check_modules(HARFBUZZ_STATIC harfbuzz)
-        set(VED_HARFBUZZ_STATIC_DEPS ${HARFBUZZ_STATIC_STATIC_LIBRARIES})
-        list(REMOVE_ITEM VED_HARFBUZZ_STATIC_DEPS harfbuzz freetype)
-        set(VED_HARFBUZZ_LIBRARY_DIRS ${HARFBUZZ_STATIC_STATIC_LIBRARY_DIRS})
-    endif()
-    set(VED_HARFBUZZ_LINK_TARGET ${HARFBUZZ_STATIC_LIBRARY})
-    set(VED_HARFBUZZ_INCLUDE_DIRS ${HARFBUZZ_INCLUDE_DIR})
 endif()
 
 qt_standard_project_setup()
@@ -315,6 +373,27 @@ set_target_properties(ved_qt_app PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
+
+function(ved_copy_qt_runtime target)
+    if(WIN32 AND TARGET Qt6::Core AND TARGET Qt6::QWindowsIntegrationPlugin)
+        get_target_property(VED_QT_CORE_DLL Qt6::Core IMPORTED_LOCATION_DEBUG)
+        if(NOT VED_QT_CORE_DLL)
+            get_target_property(VED_QT_CORE_DLL Qt6::Core IMPORTED_LOCATION)
+        endif()
+        if(VED_QT_CORE_DLL)
+            get_filename_component(VED_QT_BIN_DIR "${VED_QT_CORE_DLL}" DIRECTORY)
+            file(GLOB VED_QT_RUNTIME_DLLS CONFIGURE_DEPENDS "${VED_QT_BIN_DIR}/*.dll")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:${target}>/platforms"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${VED_QT_RUNTIME_DLLS} "$<TARGET_FILE_DIR:${target}>"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>" "$<TARGET_FILE_DIR:${target}>/platforms/"
+                VERBATIM
+            )
+        endif()
+    endif()
+endfunction()
+
+ved_copy_qt_runtime(ved_qt_app)
 
 enable_testing()
 

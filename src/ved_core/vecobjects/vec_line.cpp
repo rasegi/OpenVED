@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <array>
 
 TDVecLine::TDVecLine()
     : TDVecLine(0.0, 0.0, 0.0, 0.0) {
