@@ -53,7 +53,7 @@ OpenVED is intended as:
 
 | Component     | Technology            |
 | ------------- | --------------------- |
-| Language      | C++20                 |
+| Language      | C++23                 |
 | GUI/Rendering | Qt6                   |
 | Build System  | CMake                 |
 | Platforms     | Linux, macOS, Windows |
@@ -64,10 +64,15 @@ OpenVED is intended as:
 
 ### Requirements
 
-* C++20 compatible compiler
-* Qt6
-* CMake 3.20+
+* C++23 compatible compiler
+* Qt6 Widgets
+* CMake 3.24+
 * Ninja (recommended)
+* FreeType development files
+* HarfBuzz development files
+
+FreeType and HarfBuzz can be provided either by the system/package manager or vendored under
+`third_party/freetype` and `third_party/harfbuzz`.
 
 ---
 
@@ -82,6 +87,51 @@ cd build
 
 cmake .. -G Ninja
 cmake --build .
+```
+
+### macOS Build Example
+
+Using Homebrew:
+
+```bash
+brew install cmake ninja qt freetype harfbuzz
+
+git clone https://github.com/YOURNAME/OpenVED.git
+cd OpenVED
+
+cmake -S . -B build -G Ninja \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix freetype);$(brew --prefix harfbuzz)"
+
+cmake --build build
+```
+
+### Windows Build Example
+
+Using vcpkg and Visual Studio 2022:
+
+```powershell
+git clone https://github.com/YOURNAME/OpenVED.git
+cd OpenVED
+
+vcpkg install qtbase freetype harfbuzz --triplet x64-windows
+
+cmake -S . -B build -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+  -DVCPKG_TARGET_TRIPLET=x64-windows
+
+cmake --build build
+```
+
+For a fully static Windows dependency build, use a static vcpkg triplet:
+
+```powershell
+vcpkg install qtbase freetype harfbuzz --triplet x64-windows-static
+
+cmake -S . -B build-static -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+  -DVCPKG_TARGET_TRIPLET=x64-windows-static
+
+cmake --build build-static
 ```
 
 ---
