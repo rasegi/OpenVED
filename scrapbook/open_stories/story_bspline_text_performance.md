@@ -286,20 +286,22 @@ Pruefung und Absicherung:
 
 Alle 21 Tests bestanden.
 
-### Schritt 7: Adaptive Zeichenaufloesung spaeter pruefen
+### Schritt 7: Adaptive Zeichenaufloesung — erledigt 2026-05-24
 
-Optional nach Schritt 1-6:
+`TDGraphicEngineQt::DrawPolygon()` duennt beim Zeichnen Punkte aus, die auf denselben
+Screen-Pixel fallen.
 
-- Beim Zeichnen kann eine zoomabhaengig reduzierte Kurve benutzt werden.
-- Beim starken Herauszoomen braucht eine BSpline nicht 50+ Segmente, wenn viele Punkte auf
-  denselben Pixel fallen.
-- Hit-Test sollte dabei vorsichtig bleiben, damit Auswahl nicht ungenau wird.
+Umsetzung:
 
-Moegliche Regel:
+- Beim Aufbau des `QPolygonF` wird jeder Punkt zu Screen-Koordinaten transformiert.
+- Falls ein Punkt auf denselben Pixel faellt wie der vorherige, wird er uebersprungen.
+- Erster und letzter Punkt werden immer beibehalten (Kurvenendpunkte).
+- Hit-Test bleibt bei voller Aufloesung (nutzt gecachte Core-Kurve, nicht Qt-Rendering).
+- Bei hohem Zoom sind alle Punkte verschieden — kein Qualitaetsverlust.
+- Bei starkem Herauszoomen werden redundante Punkte eliminiert — weniger Zeichenaufwand
+  fuer Qt.
 
-- interne geometrische Kurve bleibt in Originalaufloesung gecacht.
-- Qt-Zeichnen darf Screen-Punkte ausduennen, wenn aufeinanderfolgende Punkte im gleichen
-  oder benachbarten Pixel landen.
+Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
 ### Schritt 8: Qt-Polyline-Cache nur falls noetig
 

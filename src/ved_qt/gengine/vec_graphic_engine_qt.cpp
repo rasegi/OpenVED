@@ -177,10 +177,23 @@ void TDGraphicEngineQt::DrawPolygon(const TDMatPointsArray* pParams, bool bOutLi
         return;
     }
 
+    const std::size_t lastIndex = pParams->size() - 1;
     QPolygonF polygon;
     polygon.reserve(static_cast<int>(pParams->size()));
-    for (const TDMatPoint& point : *pParams) {
-        polygon << QPointF(RealToXPos(point.x), RealToYPos(point.y));
+    long prevScreenX = 0;
+    long prevScreenY = 0;
+    bool hasPrev = false;
+    for (std::size_t i = 0; i <= lastIndex; ++i) {
+        const TDMatPoint& point = (*pParams)[i];
+        const long screenX = RealToXPos(point.x);
+        const long screenY = RealToYPos(point.y);
+        if (hasPrev && i != lastIndex && screenX == prevScreenX && screenY == prevScreenY) {
+            continue;
+        }
+        polygon << QPointF(screenX, screenY);
+        prevScreenX = screenX;
+        prevScreenY = screenY;
+        hasPrev = true;
     }
 
     painter_->save();
