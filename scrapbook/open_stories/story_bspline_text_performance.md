@@ -233,43 +233,39 @@ Nutzen:
 
 Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
-### Schritt 5: Text-Geometrie-Cache als Muss
+### Schritt 5: Text-Geometrie-Cache — erledigt 2026-05-24
 
-`TDVecText` und `TDVecFrameText` sollen ihre erzeugte Glyph-Geometrie nur neu aufbauen,
-wenn sich textrelevante Parameter aendern.
+`TDVecText` und `TDVecFrameText` bauen Glyph-Geometrie nur noch bei Parameteraenderung
+neu auf.
 
-Dirty setzen bei:
+Umsetzung:
 
-- Textinhalt
-- Fontname/Font-ID
-- Fontpointer
-- X-/Y-Scale
-- Winkel
-- Incline
-- Zeilenabstand
-- Zeichenabstand
-- Resolution
-- horizontaler Justification
-- vertikaler Ausrichtung
-- Vertical/Underline
-- FrameText-Rechteck
-- Scale-with-frame
-- Move/Scale/Rotate/Node-Move, falls dadurch Glyph-Geometrie oder Frame abhaengt
+- `mutable bool glyphsDirty_ = true` als Member in `TDVecText`
+- `EnsureGlyphsInitialized()` als const Guard (nutzt `const_cast` fuer virtuelles
+  `InitializeGlyphs()`)
+- `MarkGlyphsDirty()` zum Invalidieren
+- `InitializeGlyphs()` setzt `glyphsDirty_ = false` am Anfang
 
-Prinzip:
+Leser die den Cache sicherstellen:
 
-- `EnsureGlyphsInitialized()` statt implizit mehrfacher Initialisierung.
-- `Draw()`, `GetFrame()`, `HitTest()`, `DrawNodes()` duerfen nur sicherstellen, dass der
-  Cache aktuell ist.
-- Parameter-Setter und Operationen markieren den Cache dirty.
-- Bereits erzeugte Glyph-PolyCurves bleiben erhalten, solange keine Parameteraenderung vorliegt.
+- `Draw()`, `GetFrame()`, `CountGlyphs()` rufen `EnsureGlyphsInitialized()`
+- `HitTest()` und `DrawNodes()` sind ueber `GetFrame()` / `Draw()` abgedeckt
 
-Wichtig:
+Invalidierung durch Mutatoren:
 
-- Das ist fuer komplexe TrueType-Fonts zwingend.
-- Ohne diesen Schritt bleibt viel Text mit komplexen Fonts praktisch unbedienbar.
-- Der Cache muss beim Wechsel zwischen VFN/Latin-1 und TrueType/UTF-8-Shaper korrekt
-  invalidiert werden.
+- `SetText`, `SetVecFontPointer`, `SetJustification`, `SetVerticalAlignment`
+- `SetParameter`, `ToScale`, `Rotate`, `Initialize`
+- `SetXScale`, `SetYScale`, `SetAngle`, `SetIncline` (fehlte vorher)
+- `SetLineSpacing`, `SetCharSpacing` (fehlte vorher)
+- `TDVecFrameText`: `SetRectangle`, `ToScale`, `SetParameter`
+
+Beseitigt doppelte Initialisierung:
+
+- `TDVecFrameText::SetParameter` rief `InitializeGlyphs` doppelt auf (einmal via
+  `TDVecText::SetParameter`, einmal direkt) — jetzt nur einmal bei erstem Zugriff.
+- `TDVecFrameText::ToScale` ebenso.
+
+Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
 ### Schritt 6: Font-/Glyph-Level Cache pruefen
 

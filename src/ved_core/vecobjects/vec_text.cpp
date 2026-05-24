@@ -462,6 +462,7 @@ void TDVecText::Draw(TDGraphicEngine* pGE, bool bOutLine) const
     if (!pGE) {
         return;
     }
+    EnsureGlyphsInitialized();
     TDVecObject::Draw(pGE, bOutLine);
     for (int i = 0; i < CountGlyphs(); ++i) {
         TDVecGlyph* glyph = glyphs_[static_cast<size_t>(i)].get();
@@ -483,6 +484,7 @@ void TDVecText::DrawNodes(TDGraphicEngine* pGE) const
 
 TDMatRect TDVecText::GetFrame() const
 {
+    EnsureGlyphsInitialized();
     TDMatRect frame = emptyRect();
     bool initialized = false;
     for (int i = 0; i < CountGlyphs(); ++i) {
@@ -553,7 +555,7 @@ bool TDVecText::ToScale(TDMatPoint MatPoint, double xScale, double yScale)
         mnXScale *= yScale;
         mnYScale *= xScale;
     }
-    InitializeGlyphs();
+    MarkGlyphsDirty();
     return true;
 }
 
@@ -566,7 +568,7 @@ bool TDVecText::Rotate(TDMatPoint MatPoint, double nAngle)
     mOriginPoint.x = cosD(nAngle) * translated.x - sinD(nAngle) * translated.y + MatPoint.x;
     mOriginPoint.y = sinD(nAngle) * translated.x + cosD(nAngle) * translated.y + MatPoint.y;
     mnAngle += nAngle;
-    InitializeGlyphs();
+    MarkGlyphsDirty();
     return true;
 }
 
@@ -588,11 +590,25 @@ void TDVecText::Initialize()
     while (mnAngle <= -360.0) {
         mnAngle += 360.0;
     }
-    InitializeGlyphs();
+    MarkGlyphsDirty();
+}
+
+void TDVecText::EnsureGlyphsInitialized() const
+{
+    if (!glyphsDirty_) {
+        return;
+    }
+    const_cast<TDVecText*>(this)->InitializeGlyphs();
+}
+
+void TDVecText::MarkGlyphsDirty()
+{
+    glyphsDirty_ = true;
 }
 
 void TDVecText::InitializeGlyphs()
 {
+    glyphsDirty_ = false;
     glyphs_.clear();
     if (!msText || !mpVecFont) {
         return;
@@ -664,7 +680,7 @@ void TDVecText::SetText(const char* sText)
         msText = new char[size];
         std::memcpy(msText, sText, size);
     }
-    InitializeGlyphs();
+    MarkGlyphsDirty();
 }
 
 const char* TDVecText::GetText() const { return msText ? msText : ""; }
@@ -684,35 +700,35 @@ void TDVecText::InitializeOriginPoint(TDMatPoint OriginPoint)
     mOriginPoint = OriginPoint;
 }
 
-void TDVecText::SetXScale(double nXScale) { if (!MatBelike2Double(nXScale, 0.0, 4)) mnXScale = nXScale; }
+void TDVecText::SetXScale(double nXScale) { if (!MatBelike2Double(nXScale, 0.0, 4)) { mnXScale = nXScale; MarkGlyphsDirty(); } }
 double TDVecText::GetXScale() const { return mnXScale; }
-void TDVecText::SetYScale(double nYScale) { if (!MatBelike2Double(nYScale, 0.0, 4)) mnYScale = nYScale; }
+void TDVecText::SetYScale(double nYScale) { if (!MatBelike2Double(nYScale, 0.0, 4)) { mnYScale = nYScale; MarkGlyphsDirty(); } }
 double TDVecText::GetYScale() const { return mnYScale; }
-void TDVecText::SetAngle(double nAngle) { mnAngle = nAngle; }
+void TDVecText::SetAngle(double nAngle) { mnAngle = nAngle; MarkGlyphsDirty(); }
 double TDVecText::GetAngle() const { return mnAngle; }
-void TDVecText::SetIncline(double nIncline) { mnIncline = nIncline; }
+void TDVecText::SetIncline(double nIncline) { mnIncline = nIncline; MarkGlyphsDirty(); }
 double TDVecText::GetIncline() const { return mnIncline; }
-void TDVecText::SetLineSpacing(double nLineSpacing) { mnLineSpacing = nLineSpacing; }
+void TDVecText::SetLineSpacing(double nLineSpacing) { mnLineSpacing = nLineSpacing; MarkGlyphsDirty(); }
 double TDVecText::GetLineSpacing() const { return mnLineSpacing; }
-void TDVecText::SetCharSpacing(double nCharSpacing) { mnCharSpacing = nCharSpacing; }
+void TDVecText::SetCharSpacing(double nCharSpacing) { mnCharSpacing = nCharSpacing; MarkGlyphsDirty(); }
 double TDVecText::GetCharSpacing() const { return mnCharSpacing; }
 void TDVecText::SetVertical(bool bVertical) { mbVertical = bVertical; }
 bool TDVecText::GetVertical() const { return mbVertical; }
 void TDVecText::SetUnderline(bool bUnderline) { mbUnderline = bUnderline; }
 bool TDVecText::GetUnderline() const { return mbUnderline; }
-void TDVecText::SetJustification(TDJustification eJustification) { meJustification = eJustification; InitializeGlyphs(); }
+void TDVecText::SetJustification(TDJustification eJustification) { meJustification = eJustification; MarkGlyphsDirty(); }
 TDVecText::TDJustification TDVecText::GetJustification() const { return meJustification; }
-void TDVecText::SetVerticalAlignment(TDVerticalAlignment eVerticalAlignment) { meVerticalAlignment = eVerticalAlignment; InitializeGlyphs(); }
+void TDVecText::SetVerticalAlignment(TDVerticalAlignment eVerticalAlignment) { meVerticalAlignment = eVerticalAlignment; MarkGlyphsDirty(); }
 TDVecText::TDVerticalAlignment TDVecText::GetVerticalAlignment() const { return meVerticalAlignment; }
 void TDVecText::SetFontName(const char* sFontName) { copyFixedString(msFontName, sizeof(msFontName), sFontName); }
 const char* TDVecText::GetFontName() const { return msFontName; }
-void TDVecText::SetVecFontPointer(const TDVecFont* pVecFont) { mpVecFont = pVecFont; InitializeGlyphs(); }
+void TDVecText::SetVecFontPointer(const TDVecFont* pVecFont) { mpVecFont = pVecFont; MarkGlyphsDirty(); }
 const TDVecFont* TDVecText::GetVecFontPointer() const { return mpVecFont; }
 void TDVecText::SetResolution(unsigned int nResolution) { mnResolution = nResolution <= MAX_TEXT_RESOLUTION ? nResolution : MID_TEXT_RESOLUTION; }
 unsigned int TDVecText::GetResolution() const { return mnResolution; }
 void TDVecText::SetScaleDependency(bool bValue) { (void)bValue; }
 bool TDVecText::GetScaleDependency() const { return true; }
-int TDVecText::CountGlyphs() const { return static_cast<int>(glyphs_.size()); }
+int TDVecText::CountGlyphs() const { EnsureGlyphsInitialized(); return static_cast<int>(glyphs_.size()); }
 
 void TDVecText::SetParameter(const TDVecTextParameter* p)
 {
@@ -732,7 +748,7 @@ void TDVecText::SetParameter(const TDVecTextParameter* p)
     SetResolution(p->mnResolution);
     mpVecFont = p->mpVecFont ? p->mpVecFont : gDefaultVecTextFont;
     SetFontName(p->msFontName);
-    InitializeGlyphs();
+    MarkGlyphsDirty();
 }
 
 void TDVecText::GetParameter(TDVecTextParameter* p) const
@@ -921,7 +937,7 @@ bool TDVecFrameText::ToScale(TDMatPoint MatPoint, double xScale, double yScale)
         TDVecText::ToScale(MatPoint, xScale, yScale);
     }
     scaleRect(mRectangle, MatPoint, xScale, yScale);
-    InitializeGlyphs();
+    MarkGlyphsDirty();
     return true;
 }
 
@@ -944,7 +960,7 @@ void TDVecFrameText::SetRectangle(const TDMatRect* pRectangle)
     }
     mRectangle = *pRectangle;
     mbOriginIsjustified = false;
-    InitializeGlyphs();
+    MarkGlyphsDirty();
 }
 
 TDMatRect TDVecFrameText::GetRectangle() const { return mRectangle; }
@@ -1000,7 +1016,7 @@ void TDVecFrameText::SetParameter(const TDVecTextParameter* p)
         mbScaleDependency = p->mbScaleDependency;
     }
     mbOriginIsjustified = false;
-    InitializeGlyphs();
+    MarkGlyphsDirty();
 }
 
 void TDVecFrameText::GetParameter(TDVecTextParameter* p) const

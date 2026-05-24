@@ -137,7 +137,10 @@ protected:
 
     void InitializeOriginPoint(TDMatPoint OriginPoint);
     virtual void InitializeGlyphs();
+    void EnsureGlyphsInitialized() const;
+    void MarkGlyphsDirty();
     void CopyFrom(const TDVecText& other);
+    mutable bool glyphsDirty_ = true;
 };
 
 class TDVecFrameText : public TDVecText {
