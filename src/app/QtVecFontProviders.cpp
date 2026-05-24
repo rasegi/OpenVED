@@ -433,6 +433,32 @@ std::unique_ptr<TDVecFont> convertFontFileWithFreeType(const QString& path, long
 }
 } // namespace
 
+struct VecShapingCache {
+    QString fontId;
+    FT_Library library = nullptr;
+    FT_Face face = nullptr;
+    hb_font_t* hbFont = nullptr;
+    double scale = 0.0;
+    double hbScale = 0.0;
+    double ascent = 0.0;
+
+    ~VecShapingCache()
+    {
+        if (hbFont) {
+            hb_font_destroy(hbFont);
+        }
+        if (face) {
+            FT_Done_Face(face);
+        }
+        if (library) {
+            FT_Done_FreeType(library);
+        }
+    }
+};
+
+TDQtSystemFontProvider::TDQtSystemFontProvider() = default;
+TDQtSystemFontProvider::~TDQtSystemFontProvider() = default;
+
 TDBuiltinVfnFontProvider::TDBuiltinVfnFontProvider(QString fontId, QString displayName, QString resourcePath)
     : fontId_(std::move(fontId)),
       displayName_(std::move(displayName)),
@@ -590,24 +616,32 @@ bool TDQtSystemFontProvider::ShapeText(const TDVecFont* font, const char* utf8Te
         return false;
     }
 
-    FreeTypeLibrary freeType;
-    if (!freeType.library) {
-        return false;
-    }
-    FreeTypeFace faceGuard(freeType.library, fontEntry->path, fontEntry->faceIndex);
-    FT_Face face = faceGuard.face;
-    if (!face) {
-        return false;
+    if (!shapingCache_ || shapingCache_->fontId != requestedFontId) {
+        auto cache = std::make_unique<VecShapingCache>();
+        if (FT_Init_FreeType(&cache->library) != 0 || !cache->library) {
+            return false;
+        }
+        const QByteArray fileName = QFile::encodeName(fontEntry->path);
+        if (FT_New_Face(cache->library, fileName.constData(), fontEntry->faceIndex, &cache->face) != 0 || !cache->face) {
+            return false;
+        }
+        cache->scale = faceScale(cache->face);
+        cache->hbScale = cache->scale / 64.0;
+        cache->ascent = static_cast<double>(cache->face->ascender);
+        FT_Set_Char_Size(cache->face, 0, cache->face->units_per_EM * 64, 72, 72);
+        cache->hbFont = hb_ft_font_create(cache->face, nullptr);
+        if (!cache->hbFont) {
+            return false;
+        }
+        cache->fontId = requestedFontId;
+        shapingCache_ = std::move(cache);
     }
 
-    const double scale = faceScale(face);
-    const double hbScale = scale / 64.0;
-    const double ascent = static_cast<double>(face->ascender);
-    FT_Set_Char_Size(face, 0, face->units_per_EM * 64, 72, 72);
-    hb_font_t* hbFont = hb_ft_font_create(face, nullptr);
-    if (!hbFont) {
-        return false;
-    }
+    FT_Face face = shapingCache_->face;
+    hb_font_t* hbFont = shapingCache_->hbFont;
+    const double scale = shapingCache_->scale;
+    const double hbScale = shapingCache_->hbScale;
+    const double ascent = shapingCache_->ascent;
 
     const std::string_view text(utf8Text);
     std::size_t lineStart = 0;
@@ -668,6 +702,5 @@ bool TDQtSystemFontProvider::ShapeText(const TDVecFont* font, const char* utf8Te
         lineStart = lineEnd + 1;
     }
 
-    hb_font_destroy(hbFont);
     return shapedAny;
 }

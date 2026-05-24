@@ -267,18 +267,24 @@ Beseitigt doppelte Initialisierung:
 
 Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
-### Schritt 6: Font-/Glyph-Level Cache pruefen
+### Schritt 6: Font-/Glyph-Level Cache — erledigt 2026-05-24
 
-Der FontManager/Provider soll sicherstellen:
+Pruefung und Absicherung:
 
-- ein Systemfont wird nur einmal pro Font-ID konvertiert.
-- einzelne Glyphen-Outlines werden nicht mehrfach aus FreeType gelesen, wenn derselbe
-  Font mehrfach im Dokument benutzt wird.
-- HarfBuzz-Shaping wird pro Textobjekt/Run nur neu ausgefuehrt, wenn Text oder Font
-  geaendert wurde.
+- `TDFontManager::GetVecFontExact()` cached geladene Fonts pro Font-ID korrekt.
+  Ein Systemfont wird nur einmal konvertiert und danach wiederverwendet. (war bereits
+  korrekt, verifiziert)
 
-Falls aktuell schon ein ganzer `TDVecFont` pro Font-ID im Speicher bleibt, muss das
-explizit abgesichert und getestet werden.
+- `TDQtSystemFontProvider::ShapeText()` hat einen `VecShapingCache` bekommen:
+  FreeType-Library, FT_Face und hb_font_t werden pro Font-ID gecacht und bei
+  wiederholtem Shaping-Aufruf mit demselben Font wiederverwendet.
+  Vorher: FT_Init_FreeType + FT_New_Face + hb_ft_font_create pro ShapeText-Aufruf.
+  Nachher: nur beim ersten Aufruf oder Fontwechsel.
+
+- HarfBuzz-Shaping wird durch den Text-Geometrie-Cache (Schritt 5) nur bei
+  Parameteraenderung ausgefuehrt, nicht pro Paint.
+
+Alle 21 Tests bestanden.
 
 ### Schritt 7: Adaptive Zeichenaufloesung spaeter pruefen
 

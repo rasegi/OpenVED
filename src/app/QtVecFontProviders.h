@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+struct VecShapingCache;
+
 class TDBuiltinVfnFontProvider final : public IVecFontProvider {
 public:
     TDBuiltinVfnFontProvider(QString fontId, QString displayName, QString resourcePath);
@@ -23,6 +25,9 @@ private:
 
 class TDQtSystemFontProvider final : public IVecFontProvider {
 public:
+    TDQtSystemFontProvider();
+    ~TDQtSystemFontProvider() override;
+
     std::vector<TDVecFontDescriptor> AvailableFonts() const override;
     std::unique_ptr<TDVecFont> LoadFont(const std::string& fontId) override;
     bool ShapeText(const TDVecFont* font, const char* utf8Text, std::vector<TDVecShapedGlyph>& glyphs) const;
@@ -39,4 +44,5 @@ private:
 
     mutable bool fontIndexBuilt_ = false;
     mutable std::vector<FontEntry> fontIndex_;
+    mutable std::unique_ptr<VecShapingCache> shapingCache_;
 };
