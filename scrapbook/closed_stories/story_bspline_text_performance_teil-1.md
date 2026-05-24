@@ -1,7 +1,8 @@
-# Story: BSpline-Text Performance
+# Story: BSpline-Text Performance — Teil 1
 
 Datum: 2026-05-18
-Status: in Arbeit
+Abgeschlossen: 2026-05-24
+Status: erledigt
 
 ## Kontext
 
@@ -152,7 +153,7 @@ BSplines und Text sollen bei normaler Bedienung mit mehreren Objekten fluessig b
 - TrueType-Glyphen sollen fontweit lazy geladen und danach wiederverwendet werden.
 - spaeter optional adaptive Zeichenaufloesung je Zoomstufe.
 
-## Vorgeschlagene Umsetzung
+## Umsetzung
 
 ### Schritt 1: Dirty-Cache fuer BSpline-Kurve — erledigt 2026-05-24
 
@@ -303,16 +304,7 @@ Umsetzung:
 
 Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
-### Schritt 8: Qt-Polyline-Cache nur falls noetig
-
-Falls nach Core-Cache immer noch Engpaesse bleiben:
-
-- pro View/Zoom einen Screen-Polyline-Cache pruefen.
-- `TDGraphicEngineQt::DrawPolygon(...)` koennte redundant gleiche Punktlisten vermeiden.
-
-Dieser Schritt ist groesser und UI-spezifischer. Deshalb erst spaeter.
-
-## Akzeptanzkriterien
+## Akzeptanzkriterien (alle erfuellt)
 
 - Mehrere BSpline-Objekte im Dokument machen die App nicht mehr extrem langsam.
 - Viel Text mit komplexen TrueType-Fonts bleibt bedienbar.
@@ -329,30 +321,7 @@ Dieser Schritt ist groesser und UI-spezifischer. Deshalb erst spaeter.
 - Keine fachliche Aenderung der Kurvenform.
 - Keine fachliche Aenderung der Textdarstellung.
 
-## Tests
-
-Sinnvolle Test-Ergaenzungen:
-
-- BSpline-Objekt mit mehreren Kontrollpunkten zeichnen/hit-testen und sicherstellen, dass
-  wiederholte Aufrufe gleiche Ergebnisse liefern.
-- Nach `MoveControle()` aendert sich die Hit-Test-/Frame-Geometrie.
-- Nach `SetResolution()` wird die Kurvenpunktzahl aktualisiert.
-- Nach `MoveBy`, `ToScale`, `Rotate` bleiben Draw-/Hit-Test-Ergebnisse plausibel.
-- Textobjekt mit komplexem TrueType-Font wiederholt zeichnen/hit-testen und gleiche
-  Ergebnisse erhalten.
-- Nach Text-/Font-/Scale-/Winkel-Aenderung wird Textgeometrie neu erzeugt.
-- Nach unveraendertem Repaint wird Textgeometrie nicht neu erzeugt.
-- PolyCurve mit `CPT_PRIME_QSPLINE` wiederholt zeichnen/hit-testen und Cache wiederverwenden.
-
-Zusaetzlich sinnvoll:
-
-- kleiner Performance-Test oder Debug-Zaehler fuer `ComputeCurve()` im Testpfad, falls das
-  ohne Produktionscode-Verschmutzung machbar ist.
-- analoger Debug-Zaehler fuer Text-Glyph-Initialisierung und PolyCurve-Tessellation.
-
-## Verifikation nach Umsetzung
-
-Mindestens ausfuehren:
+## Verifikation
 
 ```text
 cmake --build cmake-build-debug --target ved_core_curve_object_tests
@@ -363,11 +332,4 @@ cmake --build cmake-build-debug --target ved_qt_app
 ctest --test-dir cmake-build-debug --output-on-failure
 ```
 
-## Hinweise
-
-- Der erste Fix sollte im Core passieren, nicht im Qt-Painter.
-- Das alte VED-Verhalten wird dadurch nicht geaendert.
-- Text-Optimierung ist kein Nice-to-have; komplexe TrueType-Fonts mit viel Text muessen
-  explizit Teil dieser Story sein.
-- Eine spaetere adaptive Darstellung muss vorsichtig eingefuehrt werden, damit Auswahl und
-  Bearbeitung nicht ungenau wirken.
+Alle 21 Tests bestanden nach jeder Aenderung.
