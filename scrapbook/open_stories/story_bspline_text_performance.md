@@ -1,7 +1,7 @@
 # Story: BSpline-Text Performance
 
 Datum: 2026-05-18
-Status: offen
+Status: in Arbeit
 
 ## Kontext
 
@@ -154,85 +154,61 @@ BSplines und Text sollen bei normaler Bedienung mit mehreren Objekten fluessig b
 
 ## Vorgeschlagene Umsetzung
 
-### Schritt 1: Dirty-Cache fuer BSpline-Kurve
+### Schritt 1: Dirty-Cache fuer BSpline-Kurve — erledigt 2026-05-24
 
-`TDVecBSPLine` bekommt einen Dirty-Mechanismus:
+`TDVecBSPLine` hat einen Dirty-Mechanismus bekommen:
 
-```cpp
-mutable bool curveDirty_ = true;
-```
+- `mutable bool curveDirty_ = true` als Member
+- `EnsureCurveComputed()` als const Guard (rechnet nur wenn dirty)
+- `MarkCurveDirty()` zum Invalidieren
 
-Neue interne Methode:
+Umgestellte Leser:
 
-```cpp
-void EnsureCurveComputed() const;
-void MarkCurveDirty();
-```
+- `Draw()`, `HitTest()` (2 Overloads), `GetFrameMin()` rufen `EnsureCurveComputed()`
 
-Prinzip:
+Invalidierung durch alle Mutatoren:
 
-- `Draw()` ruft `EnsureCurveComputed()` statt direkt `ComputeCurve()`.
-- `HitTest()` ruft `EnsureCurveComputed()`.
-- `GetFrameMin()` ruft `EnsureCurveComputed()`.
-- `ComputeCurve()` rechnet nur, wenn `curveDirty_ == true`.
-- Nach erfolgreicher Berechnung wird `curveDirty_ = false`.
+- `MoveBy`, `MoveNode`, `ToScale`, `Rotate`, `TransformToPoint`, `TransformToOrigin`
+- `MoveControle`, `SetDegree`, `SetResolution`
+- `InsertPoint`, `AppendPoint`, `RemovePoint`, `ClearPoints`
 
-Alle Methoden, die Kontrollpunkte, Degree oder Resolution veraendern, muessen den Cache
-invalidieren:
+Zusaetzlich bereinigt:
 
-- `MoveBy`
-- `MoveNode`
-- `ToScale`
-- `Rotate`
-- `TransformToPoint`
-- `TransformToOrigin`
-- `MoveControle`
-- `SetDegree`
-- `SetResolution`
-- `InsertPoint`
-- `AppendPoint`
-- `RemovePoint`
-- `ClearPoints`
+- `ToScale()` transformiert `curve_` nicht mehr direkt — Kurve wird lazy aus
+  skalierten Kontrollpunkten neu berechnet.
+- `TransformToPoint()` / `TransformToOrigin()` verschieben nur noch `controls_`
+  und setzen dirty.
+- `SetDegree()` und `SetResolution()` invalidieren den Cache jetzt korrekt
+  (fehlte vorher).
 
-Wichtig:
+Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
-- Das ist fachlich neutral.
-- Es aendert nicht die Kurvenform.
-- Es vermeidet nur doppelte Arbeit.
+### Schritt 2: Keine Heap-Allokationen in `ComputeBasisFuns()` — erledigt 2026-05-24
 
-### Schritt 2: Keine Heap-Allokationen in `ComputeBasisFuns()`
+`ComputeBasisFuns()` erzeugt keine lokalen Vektoren mehr pro Kurvenpunkt.
 
-`ComputeBasisFuns()` soll nicht pro Kurvenpunkt neue Vektoren erzeugen.
+Umsetzung:
 
-Moegliche Loesungen:
+- Member `basisLeft_`, `basisRight_` (mutable) eingefuehrt.
+- `basisFuns_` (bereits vorhanden) wird direkt als Arbeitsvektor benutzt
+  statt ueber ein separates `n`-Array kopiert zu werden.
+- `assign(size, 0.0)` ueberschreibt den Inhalt ohne Allokation, solange
+  die Kapazitaet ausreicht (nach erstem Aufruf der Fall).
+- `basisWork_` aus der Story-Planung entfaellt, da `basisFuns_` diese Rolle
+  direkt uebernimmt.
 
-- kleine wiederverwendbare `mutable std::vector<double>` Member fuer `left`, `right`, `basis`.
-- oder Stack-Array, falls wir Degree sinnvoll begrenzen.
+Damit fallen bei 50 Kurvenpunkten ~150 Heap-Allokationen pro `ComputeCurve()` weg.
 
-Pragmatische erste Variante:
+### Schritt 3: Reserve und stabile Kurvenpunktzahl — erledigt 2026-05-24
 
-- Member `basisLeft_`, `basisRight_`, `basisWork_` einfuehren.
-- vor Nutzung auf `degree_ + 2` groesse setzen.
-- Inhalte ueberschreiben.
-
-Damit bleiben variable Degree-Werte moeglich, aber die meisten Allokationen fallen weg.
-
-### Schritt 3: Reserve und stabile Kurvenpunktzahl
-
-`ComputeCurve()` kennt die ungefaehre Punktzahl:
-
-- Startpunkt
-- `resolution_ + 1` Samples
-- Endpunkt
-
-Vor dem Befuellen:
+`ComputeCurve()` ruft vor dem Befuellen:
 
 ```cpp
-curve_.clear();
 curve_.reserve(resolution_ + 3);
 ```
 
-Damit werden Re-Allokationen im Kurvenpunktvektor reduziert.
+Damit werden Re-Allokationen im Kurvenpunktvektor bei stabilem `resolution_`-Wert
+vollstaendig vermieden.
 
 ### Schritt 4: PolyCurve Draw-Point-Cache
 

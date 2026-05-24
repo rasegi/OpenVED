@@ -61,6 +61,8 @@ public:
 private:
     void FrameControlsCompute();
     void ComputeHeightAndWidth();
+    void EnsureCurveComputed() const;
+    void MarkCurveDirty();
     void ComputeBasisFuns(int i, double u) const;
     TDMatPoint GetCurvePoint(double u) const;
 
@@ -80,4 +82,7 @@ private:
     mutable std::vector<double> basisFuns_;
     mutable unsigned int numKnot_;
     mutable double upperMax_;
+    mutable bool curveDirty_ = true;
+    mutable std::vector<double> basisLeft_;
+    mutable std::vector<double> basisRight_;
 };

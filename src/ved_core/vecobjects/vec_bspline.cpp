@@ -88,7 +88,7 @@ void TDVecBSPLine::Draw(TDGraphicEngine* pGE, bool bOutLine) const {
         pGE->DrawConstructPolygon(&controls_);
     }
 
-    ComputeCurve();
+    EnsureCurveComputed();
     pGE->DrawPolygon(&curve_, bOutLine);
 
     if (GetShowControls() && !bOutLine) {
@@ -133,7 +133,7 @@ std::unique_ptr<TDVecObject> TDVecBSPLine::Clone() const {
 }
 
 TDVecLineHitResult TDVecBSPLine::HitTest(TDMatPoint point, double tolerance) const {
-    ComputeCurve();
+    EnsureCurveComputed();
     if (GetShowPolygon()) {
         const TDVecLineHitResult polygonHit = hitOpenPolyline(point, controls_, tolerance);
         if (polygonHit.IsHit()) {
@@ -152,7 +152,7 @@ TDVecLineHitResult TDVecBSPLine::HitTestNode(TDMatPoint point, double tolerance)
 }
 
 TDVecLineHitResult TDVecBSPLine::HitTest(TDGraphicEngine* pGE, TDMatPoint point, long tolerancePixels) const {
-    ComputeCurve();
+    EnsureCurveComputed();
     if (GetShowPolygon()) {
         const TDVecLineHitResult polygonHit = hitOpenPolyline(pGE, point, controls_, tolerancePixels);
         if (polygonHit.IsHit()) {
@@ -187,7 +187,7 @@ bool TDVecBSPLine::MoveBy(double dx, double dy) {
         point.x += dx;
         point.y += dy;
     }
-    ComputeCurve();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -196,7 +196,7 @@ bool TDVecBSPLine::MoveBy(double dx, double dy) {
 bool TDVecBSPLine::MoveNode(long iNode, double X, double Y, TDMatPoint MatCPoint) {
     const bool moved = MoveFrameNode(iNode, X, Y, MatCPoint);
     if (moved) {
-        ComputeCurve();
+        MarkCurveDirty();
         FrameControlsCompute();
         ComputeHeightAndWidth();
     }
@@ -213,11 +213,8 @@ bool TDVecBSPLine::ToScale(TDMatPoint MatPoint, double xScale, double yScale) {
         control.x = xScale * control.x;
         control.y = yScale * control.y;
     }
-    for (TDMatPoint& curvePoint : curve_) {
-        curvePoint.x = xScale * curvePoint.x;
-        curvePoint.y = yScale * curvePoint.y;
-    }
     TransformToOrigin(MatPoint);
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -233,7 +230,7 @@ bool TDVecBSPLine::Rotate(TDMatPoint MatPoint, double nAngle) {
         control.x = cosD(nAngle) * trans.x - sinD(nAngle) * trans.y + MatPoint.x;
         control.y = sinD(nAngle) * trans.x + cosD(nAngle) * trans.y + MatPoint.y;
     }
-    ComputeCurve();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -244,10 +241,7 @@ void TDVecBSPLine::TransformToPoint(TDMatPoint MatPoint) {
         control.x -= MatPoint.x;
         control.y -= MatPoint.y;
     }
-    for (TDMatPoint& curvePoint : curve_) {
-        curvePoint.x -= MatPoint.x;
-        curvePoint.y -= MatPoint.y;
-    }
+    MarkCurveDirty();
 }
 
 void TDVecBSPLine::TransformToOrigin(TDMatPoint MatPoint) {
@@ -255,13 +249,22 @@ void TDVecBSPLine::TransformToOrigin(TDMatPoint MatPoint) {
         control.x += MatPoint.x;
         control.y += MatPoint.y;
     }
-    for (TDMatPoint& curvePoint : curve_) {
-        curvePoint.x += MatPoint.x;
-        curvePoint.y += MatPoint.y;
+    MarkCurveDirty();
+}
+
+void TDVecBSPLine::EnsureCurveComputed() const {
+    if (!curveDirty_) {
+        return;
     }
+    ComputeCurve();
+}
+
+void TDVecBSPLine::MarkCurveDirty() {
+    curveDirty_ = true;
 }
 
 void TDVecBSPLine::ComputeCurve() const {
+    curveDirty_ = false;
     curve_.clear();
     if (controls_.size() < static_cast<std::size_t>(degree_ + 1)) {
         return;
@@ -271,6 +274,7 @@ void TDVecBSPLine::ComputeCurve() const {
         GenerateKnot();
     }
 
+    curve_.reserve(resolution_ + 3);
     curve_.push_back(controls_.front());
     const double resolution = upperMax_ / resolution_;
     for (double u = 0.0; u <= upperMax_; u += resolution) {
@@ -331,7 +335,7 @@ void TDVecBSPLine::MoveControle(long iControle, double X, double Y) {
     TDMatPoint& point = controls_[static_cast<std::size_t>(iControle)];
     point.x += X;
     point.y += Y;
-    ComputeCurve();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
 }
@@ -355,6 +359,7 @@ bool TDVecBSPLine::GetShowPolygon() const {
 void TDVecBSPLine::SetDegree(int nDegree) {
     degree_ = nDegree != 0 ? static_cast<unsigned int>(nDegree) : 2;
     GenerateKnot();
+    MarkCurveDirty();
 }
 
 unsigned int TDVecBSPLine::GetDegree() const {
@@ -363,6 +368,7 @@ unsigned int TDVecBSPLine::GetDegree() const {
 
 void TDVecBSPLine::SetResolution(unsigned int nResolution) {
     resolution_ = nResolution != 0 ? nResolution : 50;
+    MarkCurveDirty();
 }
 
 unsigned int TDVecBSPLine::GetResolution() const {
@@ -370,7 +376,7 @@ unsigned int TDVecBSPLine::GetResolution() const {
 }
 
 TDMatRect TDVecBSPLine::GetFrameMin() const {
-    ComputeCurve();
+    EnsureCurveComputed();
     return frameFromPoints(curve_);
 }
 
@@ -400,6 +406,7 @@ bool TDVecBSPLine::InsertPoint(int iPoint, const TDMatPoint& point) {
 
     controls_.insert(controls_.begin() + iPoint, point);
     GenerateKnot();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -408,6 +415,7 @@ bool TDVecBSPLine::InsertPoint(int iPoint, const TDMatPoint& point) {
 bool TDVecBSPLine::AppendPoint(const TDMatPoint& point) {
     controls_.push_back(point);
     GenerateKnot();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -420,6 +428,7 @@ bool TDVecBSPLine::RemovePoint(int iPoint) {
 
     controls_.erase(controls_.begin() + iPoint);
     GenerateKnot();
+    MarkCurveDirty();
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -430,8 +439,11 @@ bool TDVecBSPLine::ClearPoints() {
     curve_.clear();
     knotVector_.clear();
     basisFuns_.clear();
+    basisLeft_.clear();
+    basisRight_.clear();
     numKnot_ = 0;
     upperMax_ = 0.0;
+    curveDirty_ = true;
     FrameControlsCompute();
     ComputeHeightAndWidth();
     return true;
@@ -530,25 +542,21 @@ TDMatPoint TDVecBSPLine::GetCurvePoint(double u) const {
 }
 
 void TDVecBSPLine::ComputeBasisFuns(int i, double u) const {
-    std::vector<double> right(degree_ + 2, 0.0);
-    std::vector<double> left(degree_ + 2, 0.0);
-    std::vector<double> n(degree_ + 2, 0.0);
+    const std::size_t size = static_cast<std::size_t>(degree_) + 2;
+    basisRight_.assign(size, 0.0);
+    basisLeft_.assign(size, 0.0);
+    basisFuns_.assign(size, 0.0);
 
-    n[0] = 1.0;
+    basisFuns_[0] = 1.0;
     for (unsigned int j = 1; j <= degree_; j++) {
-        left[j] = u - knotVector_[static_cast<std::size_t>(i + 1 - static_cast<int>(j))];
-        right[j] = knotVector_[static_cast<std::size_t>(i + static_cast<int>(j))] - u;
+        basisLeft_[j] = u - knotVector_[static_cast<std::size_t>(i + 1 - static_cast<int>(j))];
+        basisRight_[j] = knotVector_[static_cast<std::size_t>(i + static_cast<int>(j))] - u;
         double saved = 0.0;
         for (unsigned int r = 0; r < j; r++) {
-            const double temp = n[r] / (right[r + 1] + left[j - r]);
-            n[r] = saved + right[r + 1] * temp;
-            saved = left[j - r] * temp;
+            const double temp = basisFuns_[r] / (basisRight_[r + 1] + basisLeft_[j - r]);
+            basisFuns_[r] = saved + basisRight_[r + 1] * temp;
+            saved = basisLeft_[j - r] * temp;
         }
-        n[j] = saved;
-    }
-
-    basisFuns_.clear();
-    for (unsigned int t = 0; t < degree_ + 2; t++) {
-        basisFuns_.push_back(n[t]);
+        basisFuns_[j] = saved;
     }
 }
