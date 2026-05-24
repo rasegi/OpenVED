@@ -71,42 +71,38 @@ std::unique_ptr<TDVecPolyCurve> TDVecPolyCurve::ReadFrom(VEDBinaryReader& reader
     return reader.Ok() ? std::move(curve) : nullptr;
 }
 
+void TDVecPolyCurve::EnsureDrawCacheComputed() const {
+    if (!drawCacheDirty_) {
+        return;
+    }
+    drawCache_ = polyCurveDrawPoints(conturPoints_, resolution_);
+    drawCacheDirty_ = false;
+}
+
+void TDVecPolyCurve::MarkDrawCacheDirty() {
+    drawCacheDirty_ = true;
+}
+
 void TDVecPolyCurve::Draw(TDGraphicEngine* pGE, bool bOutLine) const {
     if (!pGE || conturPoints_.empty()) {
         return;
     }
 
     TDVecObject::Draw(pGE, bOutLine);
-    const TDMatConturPoint* previous = &conturPoints_.front();
-    for (std::size_t i = 1; i < conturPoints_.size(); ++i) {
-        const TDMatConturPoint* current = &conturPoints_[i];
-        if (current->eType == CPT_PRIME_LINE && previous->eType == CPT_PRIME_LINE) {
-            TDMatLine params{previous->x, previous->y, current->x, current->y};
-            pGE->DrawLine(&params, bOutLine);
-        } else if (current->eType == CPT_PRIME_QSPLINE && i + 1 < conturPoints_.size()) {
-            const TDMatConturPoint* next = &conturPoints_[i + 1];
-            const TDMatPoint pointA{previous->x, previous->y};
-            const TDMatPoint pointB{current->x, current->y};
-            const TDMatPoint pointC{next->x, next->y};
-            TDMatPointsArray qCurve;
-            qCurve.push_back(pointA);
-            for (unsigned int step = 0; step < resolution_; ++step) {
-                TDMatPoint qPoint;
-                qPoint.x = (((pointA.x - 2 * pointB.x + pointC.x) * step * step) / (resolution_ * resolution_)) +
-                           (((2 * pointB.x - 2 * pointA.x) * step) / resolution_) + pointA.x;
-                qPoint.y = (((pointA.y - 2 * pointB.y + pointC.y) * step * step) / (resolution_ * resolution_)) +
-                           (((2 * pointB.y - 2 * pointA.y) * step) / resolution_) + pointA.y;
-                qCurve.push_back(qPoint);
-            }
-            qCurve.push_back(pointC);
-            pGE->DrawPolygon(&qCurve, bOutLine);
+    EnsureDrawCacheComputed();
+    pGE->DrawPolygon(&drawCache_, bOutLine);
 
-            if (GetShowPolygon()) {
-                TDMatPointsArray construct{pointA, pointB, pointC};
+    if (GetShowPolygon()) {
+        const TDMatConturPoint* previous = &conturPoints_.front();
+        for (std::size_t i = 1; i < conturPoints_.size(); ++i) {
+            const TDMatConturPoint* current = &conturPoints_[i];
+            if (current->eType == CPT_PRIME_QSPLINE && i + 1 < conturPoints_.size()) {
+                const TDMatConturPoint* next = &conturPoints_[i + 1];
+                TDMatPointsArray construct{{previous->x, previous->y}, {current->x, current->y}, {next->x, next->y}};
                 pGE->DrawConstructPolygon(&construct);
             }
+            previous = current;
         }
-        previous = current;
     }
 }
 
@@ -166,7 +162,8 @@ std::unique_ptr<TDVecObject> TDVecPolyCurve::Clone() const {
 }
 
 TDVecLineHitResult TDVecPolyCurve::HitTest(TDMatPoint point, double tolerance) const {
-    return hitOpenPolyline(point, polyCurveDrawPoints(conturPoints_, resolution_), tolerance);
+    EnsureDrawCacheComputed();
+    return hitOpenPolyline(point, drawCache_, tolerance);
 }
 
 TDVecLineHitResult TDVecPolyCurve::HitTestNode(TDMatPoint point, double tolerance) const {
@@ -178,7 +175,8 @@ TDVecLineHitResult TDVecPolyCurve::HitTestNode(TDMatPoint point, double toleranc
 }
 
 TDVecLineHitResult TDVecPolyCurve::HitTest(TDGraphicEngine* pGE, TDMatPoint point, long tolerancePixels) const {
-    return hitOpenPolyline(pGE, point, polyCurveDrawPoints(conturPoints_, resolution_), tolerancePixels);
+    EnsureDrawCacheComputed();
+    return hitOpenPolyline(pGE, point, drawCache_, tolerancePixels);
 }
 
 TDVecLineHitResult TDVecPolyCurve::HitTestNode(TDGraphicEngine* pGE, TDMatPoint point, long tolerancePixels) const {
@@ -234,6 +232,7 @@ bool TDVecPolyCurve::MoveBy(double dx, double dy) {
         point.x += dx;
         point.y += dy;
     }
+    MarkDrawCacheDirty();
     return true;
 }
 
@@ -245,6 +244,7 @@ bool TDVecPolyCurve::MoveNode(long iNode, double X, double Y, TDMatPoint MatCPoi
 
     conturPoints_[static_cast<std::size_t>(iNode)].x += X;
     conturPoints_[static_cast<std::size_t>(iNode)].y += Y;
+    MarkDrawCacheDirty();
     return true;
 }
 
@@ -259,6 +259,7 @@ bool TDVecPolyCurve::ToScale(TDMatPoint MatPoint, double xScale, double yScale) 
         point.y *= yScale;
     }
     TransformToOrigin(MatPoint);
+    MarkDrawCacheDirty();
     return true;
 }
 
@@ -272,6 +273,7 @@ bool TDVecPolyCurve::Rotate(TDMatPoint MatPoint, double nAngle) {
         point.x = cosD(nAngle) * trans.x - sinD(nAngle) * trans.y + MatPoint.x;
         point.y = sinD(nAngle) * trans.x + cosD(nAngle) * trans.y + MatPoint.y;
     }
+    MarkDrawCacheDirty();
     return true;
 }
 
@@ -280,6 +282,7 @@ void TDVecPolyCurve::TransformToPoint(TDMatPoint MatPoint) {
         point.x -= MatPoint.x;
         point.y -= MatPoint.y;
     }
+    MarkDrawCacheDirty();
 }
 
 void TDVecPolyCurve::TransformToOrigin(TDMatPoint MatPoint) {
@@ -287,6 +290,7 @@ void TDVecPolyCurve::TransformToOrigin(TDMatPoint MatPoint) {
         point.x += MatPoint.x;
         point.y += MatPoint.y;
     }
+    MarkDrawCacheDirty();
 }
 
 void TDVecPolyCurve::SetShowControls(bool bShowControls) {
@@ -307,6 +311,7 @@ bool TDVecPolyCurve::GetShowPolygon() const {
 
 void TDVecPolyCurve::SetResolution(unsigned int nResolution) {
     resolution_ = nResolution != 0 ? nResolution : 5;
+    MarkDrawCacheDirty();
 }
 
 unsigned int TDVecPolyCurve::GetResolution() const {
@@ -328,6 +333,7 @@ bool TDVecPolyCurve::ChangePointType(int iPoint) {
     TDMatConturPoint& point = conturPoints_[static_cast<std::size_t>(iPoint)];
     if (point.eType == CPT_PRIME_QSPLINE) {
         point.eType = CPT_PRIME_LINE;
+        MarkDrawCacheDirty();
         return true;
     }
 
@@ -335,6 +341,7 @@ bool TDVecPolyCurve::ChangePointType(int iPoint) {
     const TDMatConturPoint& next = conturPoints_[static_cast<std::size_t>(iPoint + 1)];
     if (prev.eType != CPT_PRIME_QSPLINE && next.eType != CPT_PRIME_QSPLINE) {
         point.eType = CPT_PRIME_QSPLINE;
+        MarkDrawCacheDirty();
         return true;
     }
     return false;
@@ -357,11 +364,13 @@ bool TDVecPolyCurve::InsertPoint(int iPoint, const TDMatConturPoint& point) {
     }
 
     conturPoints_.insert(conturPoints_.begin() + iPoint, point);
+    MarkDrawCacheDirty();
     return true;
 }
 
 bool TDVecPolyCurve::AppendPoint(const TDMatConturPoint& point) {
     conturPoints_.push_back(point);
+    MarkDrawCacheDirty();
     return true;
 }
 
@@ -388,11 +397,14 @@ bool TDVecPolyCurve::RemovePoint(int iPoint) {
     }
 
     conturPoints_.erase(conturPoints_.begin() + iPoint);
+    MarkDrawCacheDirty();
     return true;
 }
 
 bool TDVecPolyCurve::ClearPoints() {
     conturPoints_.clear();
+    drawCache_.clear();
+    drawCacheDirty_ = true;
     return true;
 }
 

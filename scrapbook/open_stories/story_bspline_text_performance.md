@@ -210,36 +210,28 @@ curve_.reserve(resolution_ + 3);
 Damit werden Re-Allokationen im Kurvenpunktvektor bei stabilem `resolution_`-Wert
 vollstaendig vermieden.
 
-### Schritt 4: PolyCurve Draw-Point-Cache
+### Schritt 4: PolyCurve Draw-Point-Cache — erledigt 2026-05-24
 
-`TDVecPolyCurve` bekommt einen Cache fuer die gezeichnete/tessellierte Punktliste.
+`TDVecPolyCurve` hat einen Cache fuer die tessellierte Punktliste bekommen:
 
-Prinzip:
+- `mutable TDMatPointsArray drawCache_` + `mutable bool drawCacheDirty_ = true`
+- `EnsureDrawCacheComputed()` baut die Punktliste via `polyCurveDrawPoints()` nur bei Dirty
+- `Draw()` nutzt den Cache und zeichnet via `DrawPolygon` (statt inline Tessellation)
+- `HitTest()` (2 Overloads) nutzt denselben Cache statt `polyCurveDrawPoints()` pro Aufruf
 
-- `Draw()` baut QSpline-Zwischenpunkte nur bei Dirty neu auf.
-- `HitTest()` verwendet dieselbe gecachte Punktliste.
-- Linien-Only-PolyCurves koennen direkt die Originalpunkte verwenden oder einen sehr
-  einfachen Cache bekommen.
+Invalidierung durch alle Mutatoren:
 
-Dirty setzen bei:
-
-- `MoveBy`
-- `MoveNode`
-- `ToScale`
-- `Rotate`
-- `TransformToPoint`
-- `TransformToOrigin`
-- `SetResolution`
-- `ChangePointType`
-- `InsertPoint`
-- `AppendPoint`
-- `RemovePoint`
-- `ClearPoints`
+- `MoveBy`, `MoveNode`, `ToScale`, `Rotate`, `TransformToPoint`, `TransformToOrigin`
+- `SetResolution`, `ChangePointType`
+- `InsertPoint`, `AppendPoint`, `RemovePoint`, `ClearPoints`
 
 Nutzen:
 
 - normale PolyCurves profitieren.
 - TrueType-Textglyphen profitieren besonders, weil sie viele PolyCurves enthalten.
+- Draw und HitTest teilen sich denselben Cache — keine doppelte Tessellation mehr.
+
+Alle 21 Tests bestanden. Keine fachliche Aenderung.
 
 ### Schritt 5: Text-Geometrie-Cache als Muss
 

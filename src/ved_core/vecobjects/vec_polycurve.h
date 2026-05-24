@@ -56,8 +56,13 @@ public:
     int CountPoints() const;
 
 private:
+    void EnsureDrawCacheComputed() const;
+    void MarkDrawCacheDirty();
+
     std::vector<TDMatConturPoint> conturPoints_;
     unsigned int resolution_;
     bool showControls_;
     bool showPolygon_;
+    mutable TDMatPointsArray drawCache_;
+    mutable bool drawCacheDirty_ = true;
 };
