@@ -70,6 +70,7 @@ private:
     void updatePageFormatStatus();
     void onDocumentSetup();
     void applyDocumentSettings(const struct TDVecDocumentSettings& settings);
+    void exportPdf();
     void createCurveDock();
     void showPolyCurveDock();
     void applyPolyCurveSettings();

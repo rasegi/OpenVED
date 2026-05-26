@@ -40,7 +40,9 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPageSize>
 #include <QPainter>
+#include <QPdfWriter>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QSettings>
@@ -538,6 +540,11 @@ void MainWindow::createMenus() {
 
     fileMenu->addSeparator();
 
+    auto* exportPdfAction = fileMenu->addAction(QStringLiteral("Export &PDF..."));
+    connect(exportPdfAction, &QAction::triggered, this, &MainWindow::exportPdf);
+
+    fileMenu->addSeparator();
+
     auto* editMenu = menuBar()->addMenu(QStringLiteral("&Edit"));
     undoAction_ = editMenu->addAction(QStringLiteral("&Undo"));
     undoAction_->setShortcut(QKeySequence::Undo);
@@ -866,6 +873,71 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
         QStringLiteral("X: %1  Y: %2")
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.x)))
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
+}
+
+void MainWindow::exportPdf() {
+    if (!model_) {
+        return;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        QStringLiteral("Export PDF"),
+        dialogStartPath(currentDocumentPath_, lastDocumentDirectory_, QStringLiteral("untitled.pdf")),
+        QStringLiteral("PDF files (*.pdf);;All files (*)"));
+    if (fileName.isEmpty()) {
+        return;
+    }
+    if (QFileInfo(fileName).suffix().isEmpty()) {
+        fileName += QStringLiteral(".pdf");
+    }
+
+    const auto& ds = model_->DocumentSettings();
+    const auto& ps = ds.pageSettings;
+    const TDVecUnitFormatter formatter(ds.unitSettings);
+    const double pageWidthMm = formatter.ToMillimeters(ps.widthReal);
+    const double pageHeightMm = formatter.ToMillimeters(ps.heightReal);
+
+    QPdfWriter pdfWriter(fileName);
+    pdfWriter.setPageSize(QPageSize(QSizeF(pageWidthMm, pageHeightMm), QPageSize::Millimeter));
+    pdfWriter.setPageMargins(QMarginsF(0, 0, 0, 0));
+
+    QPainter painter(&pdfWriter);
+    if (!painter.isActive()) {
+        QMessageBox::warning(
+            this,
+            QStringLiteral("Export PDF"),
+            QStringLiteral("Could not create PDF file '%1'.").arg(fileName));
+        return;
+    }
+
+    const int dpi = pdfWriter.resolution();
+    const long pdfWidth = static_cast<long>(pageWidthMm / 25.4 * dpi);
+    const long pdfHeight = static_cast<long>(pageHeightMm / 25.4 * dpi);
+
+    TDGraphicEngineQt exportEngine;
+    exportEngine.SetDeviceMetrics(pdfWidth, pdfHeight, dpi, dpi);
+    exportEngine.SetWorkSpaceRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    exportEngine.SetWorldSpaceRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    exportEngine.SetViewRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    exportEngine.SetPainter(&painter);
+
+    for (int i = 0; i < model_->CountObjects(); i++) {
+        TDVecObject* obj = model_->GetObject(i);
+        if (obj) {
+            obj->Draw(&exportEngine, false);
+        }
+    }
+
+    painter.end();
+    statusBar()->showMessage(
+        QStringLiteral("PDF exported: %1").arg(QFileInfo(fileName).fileName()), 2500);
 }
 
 void MainWindow::onDocumentSetup() {
