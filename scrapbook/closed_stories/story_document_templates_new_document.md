@@ -1,7 +1,7 @@
 # Story: Arbeitsvorlagen und Neues-Dokument-Dialog
 
 Datum: 2026-05-26
-Status: offen
+Status: ersetzt am 2026-05-26 durch DocumentSetupDialog in story_document_setup_dialog
 
 ## Kontext
 

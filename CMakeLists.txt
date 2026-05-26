@@ -336,8 +336,8 @@ qt_add_executable(ved_qt_app
     src/app/MainWindowRoundRectangleDock.cpp
     src/app/MainWindowTextDock.cpp
     src/app/MainWindowToolbars.cpp
-    src/app/PageSetupDialog.cpp
-    src/app/PageSetupDialog.h
+    src/app/DocumentSetupDialog.cpp
+    src/app/DocumentSetupDialog.h
     src/app/QtVecFontProviders.cpp
     src/app/QtVecFontProviders.h
     src/app/QVedWidget.cpp
