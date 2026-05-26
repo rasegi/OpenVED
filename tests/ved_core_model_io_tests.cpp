@@ -1,5 +1,6 @@
 #include "ved_binary_writer.h"
 #include "vec_bezier_curve.h"
+#include "vec_document_settings.h"
 #include "vec_bspline.h"
 #include "vec_ellipse.h"
 #include "vec_font.h"
@@ -557,6 +558,100 @@ int main()
         const VEDModelReadResult result = LoadVecModelFromBytes(writer.Bytes());
         assert(!result.Ok());
         assert(result.error == VEDBinaryError::UnknownObjectType);
+    }
+
+    // DocumentSettings roundtrip with non-default values
+    {
+        TDVecModel model;
+        TDVecDocumentSettings settings;
+        settings.unitSettings.displayUnit = TDVecDisplayUnit::Inch;
+        settings.unitSettings.realUnitsPerMillimeter = 500.0;
+        settings.gridSettings.majorStepReal = 25400.0;
+        settings.gridSettings.subdivisions = 8;
+        settings.gridSettings.resolutionLimitPixels = 3;
+        settings.pageSettings = TDVecPageFormats::A3(TDVecPageOrientation::Landscape);
+        settings.pageSettings.pageOriginX = 5000.0;
+        settings.pageSettings.pageOriginY = 3000.0;
+        model.SetDocumentSettings(settings);
+
+        const VEDModelWriteResult writeResult = SaveVecModelToBytes(model);
+        assert(writeResult.Ok());
+
+        const VEDModelReadResult readResult = LoadVecModelFromBytes(writeResult.bytes);
+        assert(readResult.Ok());
+        const auto& ds = readResult.model->DocumentSettings();
+        assert(ds.unitSettings.displayUnit == TDVecDisplayUnit::Inch);
+        assert(nearlyEqual(ds.unitSettings.realUnitsPerMillimeter, 500.0));
+        assert(nearlyEqual(ds.gridSettings.majorStepReal, 25400.0));
+        assert(ds.gridSettings.subdivisions == 8);
+        assert(ds.gridSettings.resolutionLimitPixels == 3);
+        assert(ds.pageSettings.formatName == "A3");
+        assert(nearlyEqual(ds.pageSettings.widthReal, 420000.0));
+        assert(nearlyEqual(ds.pageSettings.heightReal, 297000.0));
+        assert(ds.pageSettings.orientation == TDVecPageOrientation::Landscape);
+        assert(nearlyEqual(ds.pageSettings.pageOriginX, 5000.0));
+        assert(nearlyEqual(ds.pageSettings.pageOriginY, 3000.0));
+    }
+
+    // DocumentSettings roundtrip: Custom format with arbitrary size
+    {
+        TDVecModel model;
+        TDVecDocumentSettings settings;
+        settings.pageSettings = TDVecPageFormats::Custom(
+            "Banner", 2000000.0, 500000.0, TDVecPageOrientation::Landscape);
+        model.SetDocumentSettings(settings);
+
+        const VEDModelWriteResult writeResult = SaveVecModelToBytes(model);
+        assert(writeResult.Ok());
+
+        const VEDModelReadResult readResult = LoadVecModelFromBytes(writeResult.bytes);
+        assert(readResult.Ok());
+        assert(readResult.model->PageSettings().formatName == "Banner");
+        assert(nearlyEqual(readResult.model->PageSettings().widthReal, 2000000.0));
+        assert(nearlyEqual(readResult.model->PageSettings().heightReal, 500000.0));
+    }
+
+    // Backwards compatibility: file without DSET chunk loads with defaults
+    {
+        VEDBinaryWriter writer;
+        writeValidHeaderAndMetadata(writer);
+        writeEmptyObjectsChunk(writer);
+
+        const VEDModelReadResult readResult = LoadVecModelFromBytes(writer.Bytes());
+        assert(readResult.Ok());
+        const auto& ds = readResult.model->DocumentSettings();
+        assert(ds.unitSettings.displayUnit == TDVecDisplayUnit::Millimeter);
+        assert(nearlyEqual(ds.unitSettings.realUnitsPerMillimeter, 1000.0));
+        assert(nearlyEqual(ds.gridSettings.majorStepReal, 10000.0));
+        assert(ds.gridSettings.subdivisions == 10);
+        assert(ds.pageSettings.formatName == "A4");
+        assert(nearlyEqual(ds.pageSettings.widthReal, 210000.0));
+        assert(nearlyEqual(ds.pageSettings.heightReal, 297000.0));
+        assert(nearlyEqual(ds.pageSettings.pageOriginX, 0.0));
+        assert(nearlyEqual(ds.pageSettings.pageOriginY, 0.0));
+    }
+
+    // DocumentSettings roundtrip together with objects
+    {
+        TDVecModel model;
+        TDVecDocumentSettings settings;
+        settings.unitSettings.displayUnit = TDVecDisplayUnit::Centimeter;
+        settings.pageSettings = TDVecPageFormats::A5(TDVecPageOrientation::Portrait);
+        model.SetDocumentSettings(settings);
+        model.AppendObject(new TDVecLine(1.0, 2.0, 3.0, 4.0));
+
+        const VEDModelWriteResult writeResult = SaveVecModelToBytes(model);
+        assert(writeResult.Ok());
+
+        const VEDModelReadResult readResult = LoadVecModelFromBytes(writeResult.bytes);
+        assert(readResult.Ok());
+        assert(readResult.model->CountObjects() == 1);
+        assert(readResult.model->DocumentSettings().unitSettings.displayUnit == TDVecDisplayUnit::Centimeter);
+        assert(readResult.model->PageSettings().formatName == "A5");
+        assert(nearlyEqual(readResult.model->PageSettings().widthReal, 148000.0));
+        const TDVecLine* readLine = requireLine(*readResult.model, 0);
+        const TDMatLine line = readLine->GetLine();
+        assert(nearlyEqual(line.x1, 1.0));
     }
 
     return 0;

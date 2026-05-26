@@ -3,6 +3,7 @@
 #include "ved_binary_reader.h"
 #include "ved_binary_writer.h"
 #include "ved_object_io.h"
+#include "vec_document_settings.h"
 #include "vec_model.h"
 #include "vec_object.h"
 
@@ -16,6 +17,7 @@ constexpr std::uint16_t kVEDModelVersionMajor = 1;
 constexpr std::uint16_t kVEDModelVersionMinor = 0;
 constexpr std::uint16_t kVEDModelVersionPatch = 2;
 constexpr std::uint32_t kVEDModelMetaChunk = VEDMakeFourCC('M', 'E', 'T', 'A');
+constexpr std::uint32_t kVEDModelSettingsChunk = VEDMakeFourCC('D', 'S', 'E', 'T');
 constexpr std::uint32_t kVEDModelViewChunk = VEDMakeFourCC('V', 'I', 'E', 'W');
 constexpr std::uint32_t kVEDModelObjectsChunk = VEDMakeFourCC('O', 'B', 'J', 'S');
 
@@ -52,6 +54,44 @@ VEDDocumentViewState readViewState(VEDBinaryReader& reader)
     viewState.gridLock = reader.ReadBool();
     viewState.showRulers = reader.ReadBool();
     return viewState;
+}
+
+void writeDocumentSettings(VEDBinaryWriter& writer, const TDVecDocumentSettings& settings)
+{
+    writer.WriteDouble(settings.unitSettings.realUnitsPerMillimeter);
+    writer.WriteUInt8(static_cast<std::uint8_t>(settings.unitSettings.displayUnit));
+    writer.WriteDouble(settings.gridSettings.majorStepReal);
+    writer.WriteInt32(settings.gridSettings.subdivisions);
+    writer.WriteInt32(static_cast<std::int32_t>(settings.gridSettings.resolutionLimitPixels));
+    writer.WriteCString(settings.pageSettings.formatName);
+    writer.WriteDouble(settings.pageSettings.widthReal);
+    writer.WriteDouble(settings.pageSettings.heightReal);
+    writer.WriteDouble(settings.pageSettings.pageOriginX);
+    writer.WriteDouble(settings.pageSettings.pageOriginY);
+    writer.WriteUInt8(static_cast<std::uint8_t>(settings.pageSettings.orientation));
+}
+
+TDVecDocumentSettings readDocumentSettings(VEDBinaryReader& reader)
+{
+    TDVecDocumentSettings settings;
+    settings.unitSettings.realUnitsPerMillimeter = reader.ReadDouble();
+    const std::uint8_t displayUnit = reader.ReadUInt8();
+    if (displayUnit <= static_cast<std::uint8_t>(TDVecDisplayUnit::Inch)) {
+        settings.unitSettings.displayUnit = static_cast<TDVecDisplayUnit>(displayUnit);
+    }
+    settings.gridSettings.majorStepReal = reader.ReadDouble();
+    settings.gridSettings.subdivisions = reader.ReadInt32();
+    settings.gridSettings.resolutionLimitPixels = static_cast<long>(reader.ReadInt32());
+    settings.pageSettings.formatName = reader.ReadCString();
+    settings.pageSettings.widthReal = reader.ReadDouble();
+    settings.pageSettings.heightReal = reader.ReadDouble();
+    settings.pageSettings.pageOriginX = reader.ReadDouble();
+    settings.pageSettings.pageOriginY = reader.ReadDouble();
+    const std::uint8_t orientation = reader.ReadUInt8();
+    if (orientation <= static_cast<std::uint8_t>(TDVecPageOrientation::Landscape)) {
+        settings.pageSettings.orientation = static_cast<TDVecPageOrientation>(orientation);
+    }
+    return settings;
 }
 
 bool writeChunk(VEDBinaryWriter& writer, std::uint32_t chunkFourCC, std::span<const std::byte> payload)
@@ -124,6 +164,13 @@ VEDModelWriteResult SaveVecModelToBytes(const TDVecModel& model, const VEDDocume
     writePoint(metadataWriter, model.GetBottomRightArea());
     metadataWriter.WriteUInt32(static_cast<std::uint32_t>(model.GetDefaultColor()));
     if(!writeChunk(writer, kVEDModelMetaChunk, metadataWriter.Bytes())) {
+        result.error = VEDBinaryError::InvalidArgument;
+        return result;
+    }
+
+    VEDBinaryWriter settingsWriter;
+    writeDocumentSettings(settingsWriter, model.DocumentSettings());
+    if(!writeChunk(writer, kVEDModelSettingsChunk, settingsWriter.Bytes())) {
         result.error = VEDBinaryError::InvalidArgument;
         return result;
     }
@@ -205,6 +252,14 @@ VEDModelReadResult LoadVecModelFromBytes(std::span<const std::byte> bytes)
             hasMetadata = true;
             break;
         }
+        case kVEDModelSettingsChunk:
+            {
+                const TDVecDocumentSettings candidate = readDocumentSettings(chunkReader);
+                if (chunkReader.Ok()) {
+                    model->SetDocumentSettings(candidate);
+                }
+            }
+            break;
         case kVEDModelViewChunk:
             {
                 const VEDDocumentViewState candidate = readViewState(chunkReader);
