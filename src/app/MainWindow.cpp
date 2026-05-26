@@ -43,6 +43,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QSettings>
+#include <QSplitter>
 #include <QStringList>
 #include <QSpinBox>
 #include <QStatusBar>
@@ -148,7 +149,9 @@ MainWindow::MainWindow(QWidget* parent)
       gridLockAction_(nullptr),
       showRulersAction_(nullptr),
       mouseToleranceCrossAction_(nullptr),
+      statusBarSplitter_(nullptr),
       activeOperationLabel_(nullptr),
+      pageFormatLabel_(nullptr),
       coordinateLabel_(nullptr),
       curveDock_(nullptr),
       curveShowPolygonCheck_(nullptr),
@@ -211,14 +214,28 @@ MainWindow::MainWindow(QWidget* parent)
     defaultWindowState_ = saveState(kMainWindowStateVersion);
     readSettings();
     updateModifyCommandActions();
+    statusBarSplitter_ = new QSplitter(Qt::Horizontal, this);
+    statusBarSplitter_->setChildrenCollapsible(false);
+    statusBarSplitter_->setHandleWidth(6);
+    statusBarSplitter_->setStyleSheet(QStringLiteral(
+        "QSplitter::handle { background: palette(mid); border-radius: 2px; }"));
     activeOperationLabel_ = new QLabel(QStringLiteral("Operation: -"), this);
-    activeOperationLabel_->setMinimumWidth(260);
+    activeOperationLabel_->setMinimumWidth(150);
     activeOperationLabel_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    statusBar()->addPermanentWidget(activeOperationLabel_);
+    statusBarSplitter_->addWidget(activeOperationLabel_);
+    pageFormatLabel_ = new QLabel(this);
+    pageFormatLabel_->setMinimumWidth(150);
+    pageFormatLabel_->setAlignment(Qt::AlignCenter);
+    statusBarSplitter_->addWidget(pageFormatLabel_);
+    updatePageFormatStatus();
     coordinateLabel_ = new QLabel(QStringLiteral("X: -  Y: -"), this);
-    coordinateLabel_->setMinimumWidth(180);
+    coordinateLabel_->setMinimumWidth(120);
     coordinateLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    statusBar()->addPermanentWidget(coordinateLabel_);
+    statusBarSplitter_->addWidget(coordinateLabel_);
+    statusBarSplitter_->setStretchFactor(0, 3);
+    statusBarSplitter_->setStretchFactor(1, 3);
+    statusBarSplitter_->setStretchFactor(2, 2);
+    statusBar()->addPermanentWidget(statusBarSplitter_, 1);
     statusBar()->showMessage(QStringLiteral("Ready"));
 }
 
@@ -315,6 +332,7 @@ void MainWindow::installModel(std::unique_ptr<TDVecModel> model, const VEDDocume
     updateModifyCommandActions();
     updateHistoryCommandActions();
     updateMouseToleranceCrossCursor();
+    updatePageFormatStatus();
     if (viewState && viewState->present) {
         canvas_->applyDocumentViewState(*viewState);
     } else {
@@ -833,6 +851,30 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
         QStringLiteral("X: %1  Y: %2")
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.x)))
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
+}
+
+void MainWindow::updatePageFormatStatus() {
+    if (!pageFormatLabel_) {
+        return;
+    }
+
+    if (!model_) {
+        pageFormatLabel_->setText(QString());
+        return;
+    }
+
+    const auto& ps = model_->PageSettings();
+    const TDVecUnitFormatter formatter(model_->UnitSettings());
+    const QString orientation = ps.orientation == TDVecPageOrientation::Portrait
+        ? QStringLiteral("Portrait") : QStringLiteral("Landscape");
+    const std::string widthStr = formatter.FormatLength(ps.widthReal);
+    const std::string heightStr = formatter.FormatLength(ps.heightReal);
+    pageFormatLabel_->setText(
+        QStringLiteral("%1 %2 — %3 × %4")
+            .arg(QString::fromStdString(ps.formatName))
+            .arg(orientation)
+            .arg(QString::fromStdString(widthStr))
+            .arg(QString::fromStdString(heightStr)));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

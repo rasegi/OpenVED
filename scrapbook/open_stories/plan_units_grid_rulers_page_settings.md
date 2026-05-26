@@ -317,7 +317,11 @@ Kein eigenes Test-Target — Verifikation visuell:
 
 ### Log
 
-_(wird bei Umsetzung ausgefuellt)_
+- 2026-05-26: `pageFormatLabel_` in MainWindow-Statusbar eingefuegt (zwischen Operation und Koordinaten)
+- `updatePageFormatStatus()` zeigt z.B. `"A4 Portrait — 210.00 mm × 297.00 mm"`
+- Aufruf im Konstruktor, in `installModel()` (deckt auch `newDocument()` und `openDocument()` ab)
+- Build + 24/24 Tests gruen
+- Visuelle Verifikation steht noch aus
 
 ---
 

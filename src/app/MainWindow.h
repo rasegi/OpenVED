@@ -16,6 +16,7 @@ class QDockWidget;
 class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
+class QSplitter;
 class QPlainTextEdit;
 class QSpinBox;
 class QToolBar;
@@ -66,6 +67,7 @@ private:
     void deactivateViewTools();
     void setActiveOperationStatus(const QString& operationName);
     void updateCoordinateStatus(TDMatPoint point, bool valid);
+    void updatePageFormatStatus();
     void createCurveDock();
     void showPolyCurveDock();
     void applyPolyCurveSettings();
@@ -136,7 +138,9 @@ private:
     QAction* gridLockAction_;
     QAction* showRulersAction_;
     QAction* mouseToleranceCrossAction_;
+    QSplitter* statusBarSplitter_;
     QLabel* activeOperationLabel_;
+    QLabel* pageFormatLabel_;
     QLabel* coordinateLabel_;
     QDockWidget* curveDock_;
     QCheckBox* curveShowPolygonCheck_;
