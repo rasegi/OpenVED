@@ -9,21 +9,26 @@ class QComboBox;
 class QDialogButtonBox;
 class QDoubleSpinBox;
 
-class PageSetupDialog : public QDialog {
+class DocumentSetupDialog : public QDialog {
 public:
-    PageSetupDialog(const TDVecPageSettings& currentSettings,
-                    const TDVecUnitSettings& unitSettings,
-                    QWidget* parent = nullptr);
+    DocumentSetupDialog(const TDVecDocumentSettings& currentSettings,
+                        QWidget* parent = nullptr);
 
-    TDVecPageSettings pageSettings() const;
+    TDVecDocumentSettings documentSettings() const;
 
 private:
+    void onUnitChanged(int index);
     void onFormatChanged(int index);
     void onOrientationChanged(int index);
     void updateDimensionReadOnly();
+    void updateSpinBoxUnit();
+    TDVecDisplayUnit selectedUnit() const;
+    double toDisplay(double realValue) const;
+    double fromDisplay(double displayValue) const;
     QString unitSuffix() const;
 
-    TDVecUnitFormatter formatter_;
+    TDVecUnitSettings unitSettings_;
+    QComboBox* unitCombo_;
     QComboBox* formatCombo_;
     QComboBox* orientationCombo_;
     QDoubleSpinBox* widthSpin_;

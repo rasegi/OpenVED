@@ -1,6 +1,6 @@
 #include "MainWindow.h"
 
-#include "PageSetupDialog.h"
+#include "DocumentSetupDialog.h"
 #include "QVedWidget.h"
 #include "vec_document_settings.h"
 #include "vec_edit_cad.h"
@@ -371,10 +371,20 @@ void MainWindow::newDocument() {
         return;
     }
 
+    const TDVecDocumentSettings currentDefaults = model_
+        ? model_->DocumentSettings() : TDVecDocumentSettings{};
+    DocumentSetupDialog dialog(currentDefaults, this);
+    dialog.setWindowTitle(QStringLiteral("New Document"));
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const TDVecDocumentSettings settings = dialog.documentSettings();
     auto model = std::make_unique<TDVecModel>();
-    const auto& newPage = model->PageSettings();
-    model->SetTopLeftArea({newPage.pageOriginX, newPage.pageOriginY});
-    model->SetBottomRightArea({newPage.pageOriginX + newPage.widthReal, newPage.pageOriginY + newPage.heightReal});
+    model->SetDocumentSettings(settings);
+    const auto& ps = settings.pageSettings;
+    model->SetTopLeftArea({ps.pageOriginX, ps.pageOriginY});
+    model->SetBottomRightArea({ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal});
 
     installModel(std::move(model));
     model_->SetChanged(false);
@@ -556,8 +566,8 @@ void MainWindow::createMenus() {
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
 
     auto* formatMenu = menuBar()->addMenu(QStringLiteral("F&ormat"));
-    auto* pageSetupAction = formatMenu->addAction(QStringLiteral("&Page Setup..."));
-    connect(pageSetupAction, &QAction::triggered, this, &MainWindow::onPageSetup);
+    auto* docSetupAction = formatMenu->addAction(QStringLiteral("&Document Setup..."));
+    connect(docSetupAction, &QAction::triggered, this, &MainWindow::onDocumentSetup);
 
     auto* viewMenu = menuBar()->addMenu(QStringLiteral("&View"));
     auto* resetViewAction = viewMenu->addAction(QStringLiteral("&Reset View"));
@@ -858,27 +868,27 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
 }
 
-void MainWindow::onPageSetup() {
+void MainWindow::onDocumentSetup() {
     if (!model_) {
         return;
     }
 
-    PageSetupDialog dialog(model_->PageSettings(), model_->UnitSettings(), this);
+    DocumentSetupDialog dialog(model_->DocumentSettings(), this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
-    TDVecDocumentSettings newSettings = model_->DocumentSettings();
-    newSettings.pageSettings = dialog.pageSettings();
-    model_->SetDocumentSettings(newSettings);
+    applyDocumentSettings(dialog.documentSettings());
+    statusBar()->showMessage(QStringLiteral("Document setup changed"), 2500);
+}
 
-    const auto& ps = newSettings.pageSettings;
+void MainWindow::applyDocumentSettings(const TDVecDocumentSettings& settings) {
+    model_->SetDocumentSettings(settings);
+    const auto& ps = settings.pageSettings;
     model_->SetTopLeftArea({ps.pageOriginX, ps.pageOriginY});
     model_->SetBottomRightArea({ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal});
-
     canvas_->resetView();
     updatePageFormatStatus();
-    statusBar()->showMessage(QStringLiteral("Page setup changed"), 2500);
 }
 
 void MainWindow::updatePageFormatStatus() {
