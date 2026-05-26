@@ -92,18 +92,24 @@ Bereich. Labels kommen vom `TDVecUnitFormatter`.
 
 ### Tests: `tests/ved_core_measure_scale_tests.cpp`
 
-- [ ] CalculateForView bei hohem Zoom (kleines realPerPixel): minor = 1000, major = 10000
-- [ ] CalculateForView bei niedrigem Zoom (grosses realPerPixel): Steps werden groesser
-- [ ] CalculateForView: minor ist immer <= major
-- [ ] BuildTicks: korrekte Anzahl Ticks fuer einen definierten Bereich
-- [ ] BuildTicks: major-Ticks sind Vielfache von majorStep
-- [ ] BuildTicks: labeled-Ticks haben nicht-leere Labels
-- [ ] BuildTicks: Labels entsprechen formatiertem Wert (mm-Suffix)
-- [ ] Default-Settings ergeben identisches Verhalten wie bisherige Qt-Logik
+- [x] CalculateForView bei hohem Zoom (kleines realPerPixel): minor = 1000, major = 10000
+- [x] CalculateForView bei niedrigem Zoom (grosses realPerPixel): Steps werden groesser
+- [x] CalculateForView bei sehr niedrigem Zoom: groessere Steps
+- [x] CalculateForView: minor ist immer <= major (ueber mehrere Zoom-Stufen)
+- [x] NiceStepAtLeast: kleine Werte, runde Werte, Zwischenwerte
+- [x] BuildTicks: korrekte Anzahl Ticks fuer einen definierten Bereich (11 fuer 0-10000)
+- [x] BuildTicks: major-Ticks sind Vielfache von majorStep (3 major in 0-20000)
+- [x] BuildTicks: labeled-Ticks haben nicht-leere Labels
+- [x] BuildTicks: Labels enthalten mm-Suffix
+- [x] BuildTicks: leerer Bereich → leere Liste
+- [x] BuildTicks: ungueltigr Step (0) → leere Liste
+- [x] Default-Settings ergeben identisches Verhalten wie bisherige Qt-Logik
 
 ### Log
 
-_(wird bei Umsetzung ausgefuellt)_
+- 2026-05-26: `vec_measure_scale.h/cpp` erstellt, `NiceStepAtLeast` aus Qt portiert
+- 14 Tests in `ved_core_measure_scale_tests.cpp`, alle bestanden
+- Gesamte Test-Suite: 23/23 bestanden
 
 ---
 

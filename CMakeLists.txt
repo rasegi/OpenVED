@@ -166,6 +166,8 @@ add_library(ved_core STATIC
     src/ved_core/main/vec_edit_cad.h
     src/ved_core/main/vec_model.cpp
     src/ved_core/main/vec_model.h
+    src/ved_core/main/vec_measure_scale.cpp
+    src/ved_core/main/vec_measure_scale.h
     src/ved_core/main/vec_units.cpp
     src/ved_core/main/vec_units.h
     src/ved_core/main/vec_view_interface.cpp
@@ -479,6 +481,10 @@ add_executable(ved_core_text_tests
     tests/ved_core_text_tests.cpp
 )
 
+add_executable(ved_core_measure_scale_tests
+    tests/ved_core_measure_scale_tests.cpp
+)
+
 add_executable(ved_core_units_tests
     tests/ved_core_units_tests.cpp
 )
@@ -587,6 +593,11 @@ target_link_libraries(ved_core_text_tests
         ved_core
 )
 
+target_link_libraries(ved_core_measure_scale_tests
+    PRIVATE
+        ved_core
+)
+
 target_link_libraries(ved_core_units_tests
     PRIVATE
         ved_core
@@ -618,6 +629,7 @@ add_test(NAME ved_core_serialization_tests COMMAND ved_core_serialization_tests)
 add_test(NAME ved_core_model_io_tests COMMAND ved_core_model_io_tests)
 add_test(NAME ved_core_vec_font_tests COMMAND ved_core_vec_font_tests)
 add_test(NAME ved_core_text_tests COMMAND ved_core_text_tests)
+add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)
 add_test(NAME ved_core_units_tests COMMAND ved_core_units_tests)
 add_test(NAME ved_qt_gengine_outline_tests COMMAND ved_qt_gengine_outline_tests)
 set_tests_properties(ved_qt_gengine_outline_tests PROPERTIES
