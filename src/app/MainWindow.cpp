@@ -226,8 +226,9 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::initializeEditor() {
     model_ = std::make_unique<TDVecModel>();
-    model_->SetTopLeftArea({0.0, 0.0});
-    model_->SetBottomRightArea({model_->PageSettings().widthReal, model_->PageSettings().heightReal});
+    const auto& initPage = model_->PageSettings();
+    model_->SetTopLeftArea({initPage.pageOriginX, initPage.pageOriginY});
+    model_->SetBottomRightArea({initPage.pageOriginX + initPage.widthReal, initPage.pageOriginY + initPage.heightReal});
     canvas_->setDocumentSettings(&model_->DocumentSettings());
 
     editor_ = std::make_unique<TDVecEditCad>();
@@ -352,8 +353,9 @@ void MainWindow::newDocument() {
     }
 
     auto model = std::make_unique<TDVecModel>();
-    model->SetTopLeftArea({0.0, 0.0});
-    model->SetBottomRightArea({model->PageSettings().widthReal, model->PageSettings().heightReal});
+    const auto& newPage = model->PageSettings();
+    model->SetTopLeftArea({newPage.pageOriginX, newPage.pageOriginY});
+    model->SetBottomRightArea({newPage.pageOriginX + newPage.widthReal, newPage.pageOriginY + newPage.heightReal});
 
     installModel(std::move(model));
     model_->SetChanged(false);

@@ -62,6 +62,7 @@ QVedWidget::QVedWidget(QWidget* parent)
       selectionAreaStart_{0.0, 0.0},
       selectionAreaCurrent_{0.0, 0.0},
       documentSettings_(nullptr),
+      showPageBounds_(true),
       showGrid_(false),
       showRulers_(false),
       gridLock_(false),
@@ -318,7 +319,7 @@ void QVedWidget::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.fillRect(rect(), QColor(232, 232, 232));
     const QRect viewRect = canvasRect();
-    painter.fillRect(viewRect, QColor(250, 250, 248));
+    painter.fillRect(viewRect, QColor(232, 232, 232));
     painter.setClipRect(viewRect);
 
     graphicEngine_.SetDeviceMetrics(
@@ -328,6 +329,7 @@ void QVedWidget::paintEvent(QPaintEvent* event) {
         painter.device()->logicalDpiY());
     initializeViewIfNeeded();
     graphicEngine_.SetPainter(&painter);
+    drawPageBounds();
     drawGrid();
     drawAxes();
     if (paintContentCallback_) {
@@ -523,19 +525,21 @@ void QVedWidget::initializeViewIfNeeded() {
         return;
     }
 
+    const double originX = documentSettings_ ? documentSettings_->pageSettings.pageOriginX : 0.0;
+    const double originY = documentSettings_ ? documentSettings_->pageSettings.pageOriginY : 0.0;
     const double pageWidth = documentSettings_ ? documentSettings_->pageSettings.widthReal : kDefaultWorkspaceWidth;
     const double pageHeight = documentSettings_ ? documentSettings_->pageSettings.heightReal : kDefaultWorkspaceHeight;
-    graphicEngine_.SetWorkSpaceRange(0.0, 0.0, pageWidth, pageHeight);
+    graphicEngine_.SetWorkSpaceRange(originX, originY, originX + pageWidth, originY + pageHeight);
     graphicEngine_.SetWorldSpaceRange(
-        -kDocumentMargin,
-        -kDocumentMargin,
-        pageWidth + kDocumentMargin,
-        pageHeight + kDocumentMargin);
+        originX - kDocumentMargin,
+        originY - kDocumentMargin,
+        originX + pageWidth + kDocumentMargin,
+        originY + pageHeight + kDocumentMargin);
     graphicEngine_.SetViewRange(
-        -kDocumentMargin,
-        -kDocumentMargin,
-        pageWidth + kDocumentMargin,
-        pageHeight + kDocumentMargin);
+        originX - kDocumentMargin,
+        originY - kDocumentMargin,
+        originX + pageWidth + kDocumentMargin,
+        originY + pageHeight + kDocumentMargin);
     viewInitialized_ = true;
     updateScrollBars();
 }
@@ -801,6 +805,34 @@ void QVedWidget::drawRulers() {
         realPerPixel, gridResLimit, gridMajorStep, gridSubdivisions);
 
     graphicEngine_.DrawRulers(scale, formatter);
+}
+
+void QVedWidget::drawPageBounds() {
+    if (!showPageBounds_) {
+        return;
+    }
+
+    const double originX = documentSettings_ ? documentSettings_->pageSettings.pageOriginX : 0.0;
+    const double originY = documentSettings_ ? documentSettings_->pageSettings.pageOriginY : 0.0;
+    const double pageWidth = documentSettings_ ? documentSettings_->pageSettings.widthReal : kDefaultWorkspaceWidth;
+    const double pageHeight = documentSettings_ ? documentSettings_->pageSettings.heightReal : kDefaultWorkspaceHeight;
+
+    const int screenLeft = static_cast<int>(graphicEngine_.RealToXPos(originX));
+    const int screenTop = static_cast<int>(graphicEngine_.RealToYPos(originY));
+    const int screenRight = static_cast<int>(graphicEngine_.RealToXPos(originX + pageWidth));
+    const int screenBottom = static_cast<int>(graphicEngine_.RealToYPos(originY + pageHeight));
+
+    QPainter* painter = graphicEngine_.Painter();
+    if (!painter) {
+        return;
+    }
+
+    painter->save();
+    const QRect pageRect(screenLeft, screenTop, screenRight - screenLeft, screenBottom - screenTop);
+    painter->fillRect(pageRect, Qt::white);
+    painter->setPen(QPen(QColor(180, 180, 180), 1));
+    painter->drawRect(pageRect);
+    painter->restore();
 }
 
 void QVedWidget::drawAxes() {

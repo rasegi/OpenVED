@@ -16,6 +16,7 @@ public:
     ~TDGraphicEngineQt() override = default;
 
     void SetPainter(QPainter* painter);
+    QPainter* Painter() const;
     void SetDeviceMetrics(long width, long height, double dpiX, double dpiY);
     void LoadDefaultNodeImages();
     void SetNodeImages(std::vector<QPixmap> nodeImages);

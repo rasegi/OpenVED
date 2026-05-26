@@ -278,7 +278,15 @@ als Druckausschnitt zu waehlen.
 
 ### Log
 
-_(wird bei Umsetzung ausgefuellt)_
+- 2026-05-26: `pageOriginX/Y` in `TDVecPageSettings` eingefuegt (Core)
+- `QPainter* Painter()` Getter in `TDGraphicEngineQt` ergaenzt
+- `drawPageBounds()` in QVedWidget: weisses Page-Rechteck + grauer Hintergrund + Rahmen
+- `initializeViewIfNeeded()` nutzt `pageOriginX/Y` fuer Workspace/World/View-Range
+- `MainWindow`: `initializeEditor()` und `newDocument()` nutzen `pageOriginX/Y`
+- 2 neue Tests (Origin-Defaults, PageFormats-Origin), Snapshot-Tests um Origin erweitert
+- Canvas-Hintergrund von fast-weiss auf grau geaendert (einheitlich mit Widget-Hintergrund)
+- Build + 24/24 Tests gruen
+- Visuelle Verifikation steht noch aus
 
 ---
 
@@ -319,24 +327,87 @@ _(wird bei Umsetzung ausgefuellt)_
 
 **Neue Datei `src/app/PageSetupDialog.h/cpp` (Qt):**
 - `class PageSetupDialog : public QDialog`
-- UI-Elemente:
-  - `QComboBox` fuer Format (A4, A3, A5, Letter, Custom)
-  - `QComboBox` oder Radio-Buttons fuer Orientation (Portrait, Landscape)
-  - `QDoubleSpinBox` fuer Breite und Hoehe (nur bei Custom editierbar, sonst read-only)
-  - Einheit-Anzeige neben den SpinBoxes (aus aktueller DisplayUnit)
-  - OK / Abbrechen Buttons
-- Bei Format-Wechsel: Breite/Hoehe automatisch aktualisieren aus `TDVecPageFormats`
-- Bei Orientation-Wechsel: Breite und Hoehe tauschen
-- Rueckgabe: `TDVecPageSettings` mit den gewaehlten Werten
+
+**Dialog-Layout (von oben nach unten):**
+
+```
++------------------------------------------+
+|  Page Setup                              |
++------------------------------------------+
+|                                          |
+|  Format:      [  A4              v ]     |
+|  Orientation: [  Portrait        v ]     |
+|                                          |
+|  --- Abmessungen ---                     |
+|  Breite:      [ 210.00     ] mm          |
+|  Hoehe:       [ 297.00     ] mm          |
+|                                          |
+|  --- Position im Zeichenbereich ---      |
+|  Origin X:    [   0.00     ] mm          |
+|  Origin Y:    [   0.00     ] mm          |
+|                                          |
+|            [ OK ]  [ Abbrechen ]         |
++------------------------------------------+
+```
+
+**UI-Elemente im Detail:**
+
+| Element | Typ | Verhalten |
+|---|---|---|
+| Format | `QComboBox` | A4, A3, A5, Letter, Custom. Bei Wechsel: Breite/Hoehe aus `TDVecPageFormats` setzen. Bei Custom: SpinBoxes werden editierbar |
+| Orientation | `QComboBox` | Portrait, Landscape. Bei Wechsel: Breite und Hoehe tauschen |
+| Breite | `QDoubleSpinBox` | Read-only bei Standard-Formaten, editierbar bei Custom. Bereich: 1.0 – 5000.0 mm (bzw. aequivalent in aktueller Einheit). 2 Dezimalstellen |
+| Hoehe | `QDoubleSpinBox` | Wie Breite |
+| Origin X | `QDoubleSpinBox` | Immer editierbar. Position der Papier-Schablone im Koordinatensystem. Bereich: -10000.0 – 10000.0 mm. Default 0.0 |
+| Origin Y | `QDoubleSpinBox` | Wie Origin X |
+| Einheit-Label | `QLabel` | Zeigt aktuelle DisplayUnit (mm/cm/in) neben jedem SpinBox |
+| OK / Abbrechen | `QDialogButtonBox` | Standard-Buttons |
+
+**Einheiten-Logik:**
+- SpinBoxes zeigen Werte in der aktuellen `DisplayUnit` (mm, cm, in)
+- Intern wird alles in Real-Einheiten gespeichert
+- Dialog erhaelt `TDVecUnitSettings` im Konstruktor fuer Umrechnung
+- Bei Anzeige: `TDVecUnitFormatter::ToDisplayUnit(realValue)` → SpinBox
+- Bei Uebernahme: `TDVecUnitFormatter::FromDisplayUnit(displayValue)` → Real
+
+**Interaktionslogik:**
+- Format-Wechsel zu Standard (A4/A3/A5/Letter):
+  - Breite/Hoehe werden aus `TDVecPageFormats` geladen und read-only gesetzt
+  - Orientation wird beibehalten, Breite/Hoehe entsprechend getauscht
+- Format-Wechsel zu Custom:
+  - Breite/Hoehe bleiben auf den aktuellen Werten, werden editierbar
+- Orientation-Wechsel:
+  - Breite und Hoehe werden getauscht (swap)
+  - Bei Standard-Format: bleibt konsistent mit dem Format
+- Origin-Aenderung:
+  - Verschiebt die Papier-Schablone im Koordinatensystem
+  - Unabhaengig von Format und Orientation
+
+**Rueckgabe:** `TDVecPageSettings` mit allen gewaehlten Werten (Format, Breite, Hoehe, Orientation, OriginX, OriginY)
+
+---
 
 **`MainWindow.h/cpp` (Qt):**
-- Neuer Menue-Eintrag: `Format > Page Setup...`
-- Bei OK:
-  - `model_->SetDocumentSettings(...)` mit neuen PageSettings
-  - `canvas_->setDocumentSettings(...)` aktualisieren
-  - Workspace-Range und View anpassen (BottomRightArea + resetView)
-  - `updatePageFormatStatus()` aufrufen (Step F)
-  - Undo-Support: Snapshot vor Aenderung erstellen
+- Neuer Menue-Eintrag: `Format > Page Setup...` (mit Shortcut, z.B. keiner oder Ctrl+Shift+P)
+- Slot `onPageSetup()`:
+  1. Snapshot erstellen (fuer Undo)
+  2. `PageSetupDialog` oeffnen mit aktuellen `DocumentSettings`
+  3. Bei OK:
+     - Neue `TDVecDocumentSettings` zusammenbauen (PageSettings aus Dialog, Rest beibehalten)
+     - `model_->SetDocumentSettings(newSettings)`
+     - `model_->SetTopLeftArea({originX, originY})`
+     - `model_->SetBottomRightArea({originX + width, originY + height})`
+     - `canvas_->resetView()` (View an neue Page anpassen)
+     - `updatePageFormatStatus()` (Step F)
+  4. Bei Abbrechen: Snapshot verwerfen
+
+**Undo-Mechanismus:**
+- Vor Dialog-Oeffnung: `TDVecModelSnapshot` erstellen
+- Bei OK: Snapshot wird in die Undo-History geschoben (ueber `operationManager_`)
+- Bei Undo: `RestoreSnapshot` stellt vorherige DocumentSettings + TopLeft/BottomRight wieder her
+- Hinweis: Falls der bestehende Undo-Mechanismus keinen generischen Snapshot-Push unterstuetzt,
+  wird ein einfacher Ansatz gewaehlt (z.B. Model als changed markieren ohne Undo-Eintrag)
+  und vollstaendiger Undo-Support in einer separaten Story nachgezogen
 
 **`CMakeLists.txt`:**
 - `PageSetupDialog.h/cpp` in `add_executable` einfuegen
@@ -345,13 +416,20 @@ _(wird bei Umsetzung ausgefuellt)_
 
 Kein eigenes Test-Target — Verifikation visuell:
 
-- [ ] Dialog oeffnet sich ueber Menue
-- [ ] Format-Wechsel aktualisiert Breite/Hoehe korrekt
+- [ ] Dialog oeffnet sich ueber Menue `Format > Page Setup...`
+- [ ] Aktuelles Format/Orientation/Groesse/Origin sind vorausgewaehlt
+- [ ] Format-Wechsel (z.B. A4 → A3) aktualisiert Breite/Hoehe korrekt
 - [ ] Orientation-Wechsel tauscht Breite/Hoehe
-- [ ] Custom erlaubt freie Eingabe
-- [ ] OK uebernimmt Aenderung — Page Bounds (Step E) und Fusszeile (Step F) aktualisieren sich
-- [ ] Abbrechen verwirft Aenderung
-- [ ] Undo stellt vorherige Page-Groesse wieder her
+- [ ] Custom erlaubt freie Eingabe von Breite/Hoehe
+- [ ] Origin X/Y sind editierbar und aendern die Papier-Position
+- [ ] Einheiten-Labels zeigen aktuelle DisplayUnit
+- [ ] OK uebernimmt Aenderung:
+  - [ ] Page Bounds (Step E) verschieben sich bei Origin-Aenderung
+  - [ ] Page Bounds aendern Groesse bei Format-Wechsel
+  - [ ] Fusszeile (Step F) aktualisiert sich
+  - [ ] View zentriert sich auf neue Page
+- [ ] Abbrechen verwirft alle Aenderungen
+- [ ] Erneutes Oeffnen zeigt die zuletzt gesetzten Werte
 
 ### Log
 

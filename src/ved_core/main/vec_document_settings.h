@@ -19,6 +19,8 @@ struct TDVecPageSettings {
     std::string formatName = "A4";
     double widthReal = 210000.0;
     double heightReal = 297000.0;
+    double pageOriginX = 0.0;
+    double pageOriginY = 0.0;
     TDVecPageOrientation orientation = TDVecPageOrientation::Portrait;
 };
 

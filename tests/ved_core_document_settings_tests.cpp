@@ -82,6 +82,30 @@ void testCustom()
     assert(page.orientation == TDVecPageOrientation::Landscape);
 }
 
+// --- PageSettings Origin Defaults ---
+
+void testPageSettingsOriginDefaults()
+{
+    TDVecPageSettings page;
+    assert(approxEqual(page.pageOriginX, 0.0));
+    assert(approxEqual(page.pageOriginY, 0.0));
+}
+
+void testPageFormatsHaveZeroOrigin()
+{
+    const TDVecPageSettings a4 = TDVecPageFormats::A4(TDVecPageOrientation::Portrait);
+    assert(approxEqual(a4.pageOriginX, 0.0));
+    assert(approxEqual(a4.pageOriginY, 0.0));
+
+    const TDVecPageSettings a3 = TDVecPageFormats::A3(TDVecPageOrientation::Landscape);
+    assert(approxEqual(a3.pageOriginX, 0.0));
+    assert(approxEqual(a3.pageOriginY, 0.0));
+
+    const TDVecPageSettings letter = TDVecPageFormats::Letter(TDVecPageOrientation::Portrait);
+    assert(approxEqual(letter.pageOriginX, 0.0));
+    assert(approxEqual(letter.pageOriginY, 0.0));
+}
+
 // --- DocumentSettings Defaults ---
 
 void testDocumentSettingsDefaults()
@@ -95,6 +119,8 @@ void testDocumentSettingsDefaults()
     assert(settings.pageSettings.formatName == "A4");
     assert(approxEqual(settings.pageSettings.widthReal, 210000.0));
     assert(approxEqual(settings.pageSettings.heightReal, 297000.0));
+    assert(approxEqual(settings.pageSettings.pageOriginX, 0.0));
+    assert(approxEqual(settings.pageSettings.pageOriginY, 0.0));
     assert(settings.pageSettings.orientation == TDVecPageOrientation::Portrait);
 }
 
@@ -165,6 +191,8 @@ void testSnapshotContainsDocumentSettings()
     TDVecDocumentSettings settings;
     settings.unitSettings.displayUnit = TDVecDisplayUnit::Inch;
     settings.pageSettings = TDVecPageFormats::A3(TDVecPageOrientation::Portrait);
+    settings.pageSettings.pageOriginX = 5000.0;
+    settings.pageSettings.pageOriginY = 3000.0;
     settings.gridSettings.majorStepReal = 25400.0;
     model.SetDocumentSettings(settings);
 
@@ -172,6 +200,8 @@ void testSnapshotContainsDocumentSettings()
     assert(snapshot.documentSettings.unitSettings.displayUnit == TDVecDisplayUnit::Inch);
     assert(snapshot.documentSettings.pageSettings.formatName == "A3");
     assert(approxEqual(snapshot.documentSettings.gridSettings.majorStepReal, 25400.0));
+    assert(approxEqual(snapshot.documentSettings.pageSettings.pageOriginX, 5000.0));
+    assert(approxEqual(snapshot.documentSettings.pageSettings.pageOriginY, 3000.0));
 }
 
 void testSnapshotRestoreDocumentSettings()
@@ -181,16 +211,21 @@ void testSnapshotRestoreDocumentSettings()
     TDVecDocumentSettings inchSettings;
     inchSettings.unitSettings.displayUnit = TDVecDisplayUnit::Inch;
     inchSettings.pageSettings = TDVecPageFormats::Letter(TDVecPageOrientation::Portrait);
+    inchSettings.pageSettings.pageOriginX = 7000.0;
+    inchSettings.pageSettings.pageOriginY = 2000.0;
     model.SetDocumentSettings(inchSettings);
     const TDVecModelSnapshot snapshot = model.CreateSnapshot();
 
     TDVecDocumentSettings mmSettings;
     model.SetDocumentSettings(mmSettings);
     assert(model.UnitSettings().displayUnit == TDVecDisplayUnit::Millimeter);
+    assert(approxEqual(model.PageSettings().pageOriginX, 0.0));
 
     model.RestoreSnapshot(snapshot, false);
     assert(model.UnitSettings().displayUnit == TDVecDisplayUnit::Inch);
     assert(model.PageSettings().formatName == "Letter");
+    assert(approxEqual(model.PageSettings().pageOriginX, 7000.0));
+    assert(approxEqual(model.PageSettings().pageOriginY, 2000.0));
 }
 
 } // namespace
@@ -205,6 +240,8 @@ int main()
     testLetterPortrait();
     testLetterLandscape();
     testCustom();
+    testPageSettingsOriginDefaults();
+    testPageFormatsHaveZeroOrigin();
     testDocumentSettingsDefaults();
     testModelDefaultDocumentSettings();
     testModelConvenienceGetters();

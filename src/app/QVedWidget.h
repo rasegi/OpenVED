@@ -89,6 +89,7 @@ private:
     int verticalLineStep() const;
     int horizontalPageScrollStep() const;
     int verticalPageScrollStep() const;
+    void drawPageBounds();
     void drawGrid();
     void drawRulers();
     void drawAxes();
@@ -129,6 +130,7 @@ private:
     TDMatPoint selectionAreaStart_;
     TDMatPoint selectionAreaCurrent_;
     const TDVecDocumentSettings* documentSettings_;
+    bool showPageBounds_;
     bool showGrid_;
     bool showRulers_;
     bool gridLock_;

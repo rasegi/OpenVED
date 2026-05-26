@@ -44,6 +44,10 @@ void TDGraphicEngineQt::SetPainter(QPainter* painter) {
     painter_ = painter;
 }
 
+QPainter* TDGraphicEngineQt::Painter() const {
+    return painter_;
+}
+
 void TDGraphicEngineQt::SetDeviceMetrics(long width, long height, double dpiX, double dpiY) {
     screenState_.SetViewSize(width, height);
     screenState_.SetDpi(static_cast<long>(dpiX), static_cast<long>(dpiY));
