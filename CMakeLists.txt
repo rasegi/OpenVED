@@ -14,7 +14,7 @@ if(MSVC AND DEFINED VCPKG_TARGET_TRIPLET AND VCPKG_TARGET_TRIPLET MATCHES "-stat
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 find_package(PkgConfig QUIET)
 
 if(MSVC AND "$ENV{INCLUDE}" STREQUAL "")
@@ -168,6 +168,8 @@ add_library(ved_core STATIC
     src/ved_core/main/vec_model.h
     src/ved_core/main/vec_document_settings.cpp
     src/ved_core/main/vec_document_settings.h
+    src/ved_core/main/vec_export_coordinate_mapper.cpp
+    src/ved_core/main/vec_export_coordinate_mapper.h
     src/ved_core/main/vec_measure_scale.cpp
     src/ved_core/main/vec_measure_scale.h
     src/ved_core/main/vec_units.cpp
@@ -359,6 +361,7 @@ target_link_libraries(ved_qt_app
     PRIVATE
         ved_qt_gengine
         Qt6::Widgets
+        Qt6::PrintSupport
         ${VED_HARFBUZZ_LINK_TARGET}
         ${VED_FREETYPE_LINK_TARGET}
         ${VED_HARFBUZZ_STATIC_DEPS}
@@ -497,6 +500,10 @@ add_executable(ved_core_units_tests
     tests/ved_core_units_tests.cpp
 )
 
+add_executable(ved_core_export_mapper_tests
+    tests/ved_core_export_mapper_tests.cpp
+)
+
 add_executable(ved_qt_gengine_outline_tests
     tests/ved_qt_gengine_outline_tests.cpp
 )
@@ -616,6 +623,11 @@ target_link_libraries(ved_core_units_tests
         ved_core
 )
 
+target_link_libraries(ved_core_export_mapper_tests
+    PRIVATE
+        ved_core
+)
+
 target_link_libraries(ved_qt_gengine_outline_tests
     PRIVATE
         ved_qt_gengine
@@ -645,6 +657,7 @@ add_test(NAME ved_core_text_tests COMMAND ved_core_text_tests)
 add_test(NAME ved_core_document_settings_tests COMMAND ved_core_document_settings_tests)
 add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)
 add_test(NAME ved_core_units_tests COMMAND ved_core_units_tests)
+add_test(NAME ved_core_export_mapper_tests COMMAND ved_core_export_mapper_tests)
 add_test(NAME ved_qt_gengine_outline_tests COMMAND ved_qt_gengine_outline_tests)
 set_tests_properties(ved_qt_gengine_outline_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

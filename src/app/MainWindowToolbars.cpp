@@ -155,7 +155,10 @@ void MainWindow::createToolBars() {
         }
     });
     fileToolbar->addSeparator();
-    addToolAction(fileToolbar, QStringLiteral("Print"), QStringLiteral("print.bmp"));
+    auto* printToolAction = addToolAction(fileToolbar, QStringLiteral("Print"), QStringLiteral("print.bmp"), false, QStringLiteral("Print"));
+    printToolAction->setProperty("implemented", true);
+    printToolAction->setEnabled(true);
+    connect(printToolAction, &QAction::triggered, this, &MainWindow::printDocument);
     addToolAction(fileToolbar, QStringLiteral("Preview"), QStringLiteral("preview.bmp"));
 
     addToolBarBreak(Qt::TopToolBarArea);

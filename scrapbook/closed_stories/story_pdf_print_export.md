@@ -1,7 +1,7 @@
 # Story: PDF-Export und Print
 
 Datum: 2026-05-26
-Status: offen
+Status: umgesetzt am 2026-05-27 (Steps 1-3)
 
 ## Kontext
 
@@ -184,9 +184,18 @@ Objekt-Rendering bereits beherrscht.
 
 ## Akzeptanzkriterien
 
-- PDF-Export erzeugt eine Datei mit physisch korrekter Seitengroesse.
-- Real-Koordinaten werden korrekt in PDF-Points umgerechnet.
-- Die Ausgabe ist unabhaengig vom aktuellen View-Zustand.
-- Objekte erscheinen in korrekter Position und Groesse auf der PDF-Seite.
-- Print verwendet denselben Rendering-Pfad wie PDF-Export.
-- Bestehende Model-Geometrie bleibt unveraendert.
+- [x] PDF-Export erzeugt eine Datei mit physisch korrekter Seitengroesse.
+- [x] Real-Koordinaten werden korrekt in PDF-Points umgerechnet.
+- [x] Die Ausgabe ist unabhaengig vom aktuellen View-Zustand.
+- [x] Objekte erscheinen in korrekter Position und Groesse auf der PDF-Seite.
+- [x] Print verwendet denselben Rendering-Pfad wie PDF-Export.
+- [x] Bestehende Model-Geometrie bleibt unveraendert.
+
+## Umsetzungsnotiz 2026-05-27
+
+- Step 1: `TDVecExportCoordinateMapper` + `TDVecExportSettings` im Core, 11 Tests
+- Step 2: `File > Export PDF...` via `QPdfWriter`, 200 DPI fuer sichtbare Linienstärke
+- Step 3: `File > Print...` via `QPrintDialog` + Toolbar-Button, `setWindow/setViewport` fuer korrektes Mapping
+- Landscape-Dokumente: PageSize als Portrait-Basis + `setPageOrientation(Landscape)`
+- `Qt6::PrintSupport` in CMakeLists verlinkt
+- 25/25 Tests gruen, visuell verifiziert (PDF-Export + Druck)
