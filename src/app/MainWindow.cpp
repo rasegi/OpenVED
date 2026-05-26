@@ -66,6 +66,7 @@ constexpr int kMainWindowStateVersion = 1;
 constexpr auto kSettingsGeometry = "mainWindow/geometry";
 constexpr auto kSettingsState = "mainWindow/state";
 constexpr auto kSettingsLastDocumentDirectory = "documents/lastDirectory";
+constexpr auto kSettingsLastDocumentPath = "documents/lastDocumentPath";
 
 bool supportsInsertDeleteNode(const TDVecObject* object) {
     if (!object) {
@@ -194,7 +195,6 @@ MainWindow::MainWindow(QWidget* parent)
       textUnderlineCheck_(nullptr),
       textScaleDependencyCheck_(nullptr),
       textDockMode_(TextDockMode::None) {
-    setWindowTitle(QStringLiteral("VED Qt Port"));
     resize(1100, 750);
     setStyleSheet(QStringLiteral(
         "QToolButton:checked {"
@@ -209,6 +209,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     setCentralWidget(canvas_);
     initializeEditor();
+    updateWindowTitle();
 
     createMenus();
     createToolBars();
@@ -393,6 +394,7 @@ void MainWindow::newDocument() {
     installModel(std::move(model));
     model_->SetChanged(false);
     currentDocumentPath_.clear();
+    updateWindowTitle();
     statusBar()->showMessage(QStringLiteral("New document"), 2500);
 }
 
@@ -440,6 +442,7 @@ void MainWindow::openDocument() {
     installModel(std::move(result.model), &result.viewState);
     currentDocumentPath_ = fileName;
     lastDocumentDirectory_ = QFileInfo(fileName).absolutePath();
+    updateWindowTitle();
     writeSettings();
     statusBar()->showMessage(QStringLiteral("Opened %1").arg(QFileInfo(fileName).fileName()), 2500);
     showFontResolutionWarnings(result.fontResolution);
@@ -493,6 +496,7 @@ bool MainWindow::saveDocument() {
     currentDocumentPath_ = fileName;
     lastDocumentDirectory_ = QFileInfo(fileName).absolutePath();
     model_->SetChanged(false);
+    updateWindowTitle();
     writeSettings();
     statusBar()->showMessage(QStringLiteral("Saved %1").arg(QFileInfo(fileName).fileName()), 2500);
     return true;
@@ -1058,6 +1062,15 @@ void MainWindow::updatePageFormatStatus() {
             .arg(orientation)
             .arg(QString::fromStdString(widthStr))
             .arg(QString::fromStdString(heightStr)));
+}
+
+void MainWindow::updateWindowTitle() {
+    if (currentDocumentPath_.isEmpty()) {
+        setWindowTitle(QStringLiteral("VED Qt Port"));
+    } else {
+        setWindowTitle(QStringLiteral("%1 — VED Qt Port")
+            .arg(QFileInfo(currentDocumentPath_).fileName()));
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

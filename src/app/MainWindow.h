@@ -68,6 +68,7 @@ private:
     void setActiveOperationStatus(const QString& operationName);
     void updateCoordinateStatus(TDMatPoint point, bool valid);
     void updatePageFormatStatus();
+    void updateWindowTitle();
     void onDocumentSetup();
     void applyDocumentSettings(const struct TDVecDocumentSettings& settings);
     void exportPdf();
