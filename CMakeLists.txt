@@ -14,7 +14,7 @@ if(MSVC AND DEFINED VCPKG_TARGET_TRIPLET AND VCPKG_TARGET_TRIPLET MATCHES "-stat
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 find_package(PkgConfig QUIET)
 
 if(MSVC AND "$ENV{INCLUDE}" STREQUAL "")
@@ -361,6 +361,7 @@ target_link_libraries(ved_qt_app
     PRIVATE
         ved_qt_gengine
         Qt6::Widgets
+        Qt6::PrintSupport
         ${VED_HARFBUZZ_LINK_TARGET}
         ${VED_FREETYPE_LINK_TARGET}
         ${VED_HARFBUZZ_STATIC_DEPS}

@@ -44,6 +44,8 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QPixmap>
+#include <QPrintDialog>
+#include <QPrinter>
 #include <QPlainTextEdit>
 #include <QSettings>
 #include <QSplitter>
@@ -543,6 +545,10 @@ void MainWindow::createMenus() {
     auto* exportPdfAction = fileMenu->addAction(QStringLiteral("Export &PDF..."));
     connect(exportPdfAction, &QAction::triggered, this, &MainWindow::exportPdf);
 
+    auto* printAction = fileMenu->addAction(QStringLiteral("&Print..."));
+    printAction->setShortcut(QKeySequence::Print);
+    connect(printAction, &QAction::triggered, this, &MainWindow::printDocument);
+
     fileMenu->addSeparator();
 
     auto* editMenu = menuBar()->addMenu(QStringLiteral("&Edit"));
@@ -899,6 +905,7 @@ void MainWindow::exportPdf() {
     const double pageHeightMm = formatter.ToMillimeters(ps.heightReal);
 
     QPdfWriter pdfWriter(fileName);
+    pdfWriter.setResolution(200);
     pdfWriter.setPageSize(QPageSize(QSizeF(pageWidthMm, pageHeightMm), QPageSize::Millimeter));
     pdfWriter.setPageMargins(QMarginsF(0, 0, 0, 0));
 
@@ -938,6 +945,72 @@ void MainWindow::exportPdf() {
     painter.end();
     statusBar()->showMessage(
         QStringLiteral("PDF exported: %1").arg(QFileInfo(fileName).fileName()), 2500);
+}
+
+void MainWindow::printDocument() {
+    if (!model_) {
+        return;
+    }
+
+    const auto& ds = model_->DocumentSettings();
+    const auto& ps = ds.pageSettings;
+    const TDVecUnitFormatter formatter(ds.unitSettings);
+    const double pageWidthMm = formatter.ToMillimeters(ps.widthReal);
+    const double pageHeightMm = formatter.ToMillimeters(ps.heightReal);
+
+    const double shortSide = std::min(pageWidthMm, pageHeightMm);
+    const double longSide = std::max(pageWidthMm, pageHeightMm);
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setPageSize(QPageSize(QSizeF(shortSide, longSide), QPageSize::Millimeter));
+    if (pageWidthMm > pageHeightMm) {
+        printer.setPageOrientation(QPageLayout::Landscape);
+    }
+    printer.setPageMargins(QMarginsF(0, 0, 0, 0));
+
+    QPrintDialog dialog(&printer, this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QPainter painter(&printer);
+    if (!painter.isActive()) {
+        QMessageBox::warning(
+            this,
+            QStringLiteral("Print"),
+            QStringLiteral("Could not start printing."));
+        return;
+    }
+
+    const int dpi = printer.resolution();
+    const long printWidth = static_cast<long>(pageWidthMm / 25.4 * dpi);
+    const long printHeight = static_cast<long>(pageHeightMm / 25.4 * dpi);
+
+    painter.setWindow(0, 0, static_cast<int>(printWidth), static_cast<int>(printHeight));
+    painter.setViewport(0, 0, painter.device()->width(), painter.device()->height());
+
+    TDGraphicEngineQt printEngine;
+    printEngine.SetDeviceMetrics(printWidth, printHeight, dpi, dpi);
+    printEngine.SetWorkSpaceRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    printEngine.SetWorldSpaceRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    printEngine.SetViewRange(
+        ps.pageOriginX, ps.pageOriginY,
+        ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal);
+    printEngine.SetPainter(&painter);
+
+    for (int i = 0; i < model_->CountObjects(); i++) {
+        TDVecObject* obj = model_->GetObject(i);
+        if (obj) {
+            obj->Draw(&printEngine, false);
+        }
+    }
+
+    painter.end();
+    statusBar()->showMessage(QStringLiteral("Document printed"), 2500);
 }
 
 void MainWindow::onDocumentSetup() {
