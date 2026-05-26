@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vec_document_settings.h"
 #include "vec_object.h"
 
 #include <cstdint>
@@ -20,6 +21,7 @@ struct TDVecModelSnapshot {
     TDMatPoint topLeftArea;
     TDMatPoint bottomRightArea;
     TDRgbColor defaultColor;
+    TDVecDocumentSettings documentSettings;
 };
 
 enum class TDVecAlignMode {
@@ -46,6 +48,12 @@ public:
     void SetChanged(bool changed);
     void MarkChanged();
     std::uint64_t Revision() const;
+    const TDVecDocumentSettings& DocumentSettings() const;
+    const TDVecUnitSettings& UnitSettings() const;
+    const TDVecGridSettings& GridSettings() const;
+    const TDVecPageSettings& PageSettings() const;
+    void SetDocumentSettings(const TDVecDocumentSettings& settings);
+
     TDVecModelSnapshot CreateSnapshot() const;
     void RestoreSnapshot(const TDVecModelSnapshot& snapshot, bool changed);
 
@@ -83,6 +91,7 @@ private:
     TDMatPoint topLeftArea_;
     TDMatPoint bottomRightArea_;
     TDRgbColor defaultColor_;
+    TDVecDocumentSettings documentSettings_;
     bool changed_;
     std::uint64_t revision_;
 };

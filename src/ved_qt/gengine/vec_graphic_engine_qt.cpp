@@ -31,27 +31,6 @@ QPen makePen(TDRgbColor color, bool outline) {
     return pen;
 }
 
-long niceRulerStepAtLeast(double minimumStep) {
-    if (minimumStep <= 1.0) {
-        return 1;
-    }
-
-    const double exponent = std::floor(std::log10(minimumStep));
-    const double base = std::pow(10.0, exponent);
-    for (const double multiplier : {1.0, 2.0, 5.0, 10.0}) {
-        const double candidate = multiplier * base;
-        if (candidate >= minimumStep) {
-            return static_cast<long>(std::ceil(candidate));
-        }
-    }
-
-    return static_cast<long>(std::ceil(10.0 * base));
-}
-
-bool isMainRulerValue(long value, long mainStep) {
-    return mainStep > 0 && value % mainStep == 0;
-}
-
 } // namespace
 
 TDGraphicEngineQt::TDGraphicEngineQt()
@@ -63,6 +42,10 @@ TDGraphicEngineQt::TDGraphicEngineQt()
 
 void TDGraphicEngineQt::SetPainter(QPainter* painter) {
     painter_ = painter;
+}
+
+QPainter* TDGraphicEngineQt::Painter() const {
+    return painter_;
 }
 
 void TDGraphicEngineQt::SetDeviceMetrics(long width, long height, double dpiX, double dpiY) {
@@ -256,8 +239,8 @@ void TDGraphicEngineQt::DrawBoxOutLine(TDMatPoint MatPoint1, TDMatPoint MatPoint
     painter_->restore();
 }
 
-void TDGraphicEngineQt::DrawRulers(long nDist, long nSubDiv, long nResLimit) {
-    if (!painter_ || nDist <= 0 || nSubDiv <= 0) {
+void TDGraphicEngineQt::DrawRulers(const TDVecMeasureScale& scale, const TDVecUnitFormatter& formatter) {
+    if (!painter_ || scale.minorStepReal <= 0.0) {
         return;
     }
 
@@ -275,14 +258,11 @@ void TDGraphicEngineQt::DrawRulers(long nDist, long nSubDiv, long nResLimit) {
         return;
     }
 
-    const double minStepByPixel = std::max(
-        std::fabs(ScreenToXVal(nResLimit)),
-        std::fabs(ScreenToYVal(nResLimit)));
-    const double minimumStep = std::max(
-        static_cast<double>(std::max(1L, nDist / nSubDiv)),
-        minStepByPixel);
-    const long rulerStep = niceRulerStepAtLeast(minimumStep);
-    const long mainStep = std::max(nDist, rulerStep);
+    const long rulerStep = static_cast<long>(scale.minorStepReal);
+    const long mainStep = static_cast<long>(scale.majorStepReal);
+    if (rulerStep <= 0) {
+        return;
+    }
 
     const double leftReal = std::min(ScreenToXPos(clip.left()), ScreenToXPos(clip.right()));
     const double rightReal = std::max(ScreenToXPos(clip.left()), ScreenToXPos(clip.right()));
@@ -315,11 +295,11 @@ void TDGraphicEngineQt::DrawRulers(long nDist, long nSubDiv, long nResLimit) {
             continue;
         }
 
-        const bool mainTick = isMainRulerValue(x, mainStep);
-        const int tick = mainTick ? kMajorTick : kMinorTick;
+        const bool isMajor = mainStep > 0 && x % mainStep == 0;
+        const int tick = isMajor ? kMajorTick : kMinorTick;
         painter_->drawLine(xScreen, horizontalRuler.bottom(), xScreen, horizontalRuler.bottom() - tick);
-        if (mainTick && xScreen - lastHorizontalLabelRight >= kMinimumLabelDistance) {
-            const QString label = QString::number(x);
+        if (isMajor && xScreen - lastHorizontalLabelRight >= kMinimumLabelDistance) {
+            const QString label = QString::fromStdString(formatter.FormatCoordinate(static_cast<double>(x)));
             painter_->drawText(
                 xScreen + kLabelPadding,
                 horizontalRuler.top() + painter_->fontMetrics().ascent() + 2,
@@ -335,11 +315,11 @@ void TDGraphicEngineQt::DrawRulers(long nDist, long nSubDiv, long nResLimit) {
             continue;
         }
 
-        const bool mainTick = isMainRulerValue(y, mainStep);
-        const int tick = mainTick ? kMajorTick : kMinorTick;
+        const bool isMajor = mainStep > 0 && y % mainStep == 0;
+        const int tick = isMajor ? kMajorTick : kMinorTick;
         painter_->drawLine(verticalRuler.right(), yScreen, verticalRuler.right() - tick, yScreen);
-        if (mainTick && yScreen - lastVerticalLabelBottom >= kMinimumLabelDistance) {
-            const QString label = QString::number(y);
+        if (isMajor && yScreen - lastVerticalLabelBottom >= kMinimumLabelDistance) {
+            const QString label = QString::fromStdString(formatter.FormatCoordinate(static_cast<double>(y)));
             painter_->save();
             painter_->translate(verticalRuler.left() + painter_->fontMetrics().ascent() + 1, yScreen - kLabelPadding);
             painter_->rotate(-90);

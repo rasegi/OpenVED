@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 
+#include "PageSetupDialog.h"
 #include "QVedWidget.h"
+#include "vec_document_settings.h"
 #include "vec_edit_cad.h"
 #include "vec_font.h"
 #include "vec_font_manager.h"
@@ -42,6 +44,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QSettings>
+#include <QSplitter>
 #include <QStringList>
 #include <QSpinBox>
 #include <QStatusBar>
@@ -147,7 +150,9 @@ MainWindow::MainWindow(QWidget* parent)
       gridLockAction_(nullptr),
       showRulersAction_(nullptr),
       mouseToleranceCrossAction_(nullptr),
+      statusBarSplitter_(nullptr),
       activeOperationLabel_(nullptr),
+      pageFormatLabel_(nullptr),
       coordinateLabel_(nullptr),
       curveDock_(nullptr),
       curveShowPolygonCheck_(nullptr),
@@ -210,14 +215,28 @@ MainWindow::MainWindow(QWidget* parent)
     defaultWindowState_ = saveState(kMainWindowStateVersion);
     readSettings();
     updateModifyCommandActions();
+    statusBarSplitter_ = new QSplitter(Qt::Horizontal, this);
+    statusBarSplitter_->setChildrenCollapsible(false);
+    statusBarSplitter_->setHandleWidth(6);
+    statusBarSplitter_->setStyleSheet(QStringLiteral(
+        "QSplitter::handle { background: palette(mid); border-radius: 2px; }"));
     activeOperationLabel_ = new QLabel(QStringLiteral("Operation: -"), this);
-    activeOperationLabel_->setMinimumWidth(260);
+    activeOperationLabel_->setMinimumWidth(150);
     activeOperationLabel_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    statusBar()->addPermanentWidget(activeOperationLabel_);
+    statusBarSplitter_->addWidget(activeOperationLabel_);
+    pageFormatLabel_ = new QLabel(this);
+    pageFormatLabel_->setMinimumWidth(150);
+    pageFormatLabel_->setAlignment(Qt::AlignCenter);
+    statusBarSplitter_->addWidget(pageFormatLabel_);
+    updatePageFormatStatus();
     coordinateLabel_ = new QLabel(QStringLiteral("X: -  Y: -"), this);
-    coordinateLabel_->setMinimumWidth(180);
+    coordinateLabel_->setMinimumWidth(120);
     coordinateLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    statusBar()->addPermanentWidget(coordinateLabel_);
+    statusBarSplitter_->addWidget(coordinateLabel_);
+    statusBarSplitter_->setStretchFactor(0, 3);
+    statusBarSplitter_->setStretchFactor(1, 3);
+    statusBarSplitter_->setStretchFactor(2, 2);
+    statusBar()->addPermanentWidget(statusBarSplitter_, 1);
     statusBar()->showMessage(QStringLiteral("Ready"));
 }
 
@@ -225,8 +244,10 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::initializeEditor() {
     model_ = std::make_unique<TDVecModel>();
-    model_->SetTopLeftArea({0.0, 0.0});
-    model_->SetBottomRightArea({210000.0, 296985.0});
+    const auto& initPage = model_->PageSettings();
+    model_->SetTopLeftArea({initPage.pageOriginX, initPage.pageOriginY});
+    model_->SetBottomRightArea({initPage.pageOriginX + initPage.widthReal, initPage.pageOriginY + initPage.heightReal});
+    canvas_->setDocumentSettings(&model_->DocumentSettings());
 
     editor_ = std::make_unique<TDVecEditCad>();
     editor_->SetVecModel(model_.get());
@@ -294,6 +315,7 @@ void MainWindow::installModel(std::unique_ptr<TDVecModel> model, const VEDDocume
     }
 
     model_ = std::move(model);
+    canvas_->setDocumentSettings(&model_->DocumentSettings());
     if (editor_) {
         editor_->TmpClear();
         editor_->SetVecModel(model_.get());
@@ -311,6 +333,7 @@ void MainWindow::installModel(std::unique_ptr<TDVecModel> model, const VEDDocume
     updateModifyCommandActions();
     updateHistoryCommandActions();
     updateMouseToleranceCrossCursor();
+    updatePageFormatStatus();
     if (viewState && viewState->present) {
         canvas_->applyDocumentViewState(*viewState);
     } else {
@@ -349,8 +372,9 @@ void MainWindow::newDocument() {
     }
 
     auto model = std::make_unique<TDVecModel>();
-    model->SetTopLeftArea({0.0, 0.0});
-    model->SetBottomRightArea({210000.0, 296985.0});
+    const auto& newPage = model->PageSettings();
+    model->SetTopLeftArea({newPage.pageOriginX, newPage.pageOriginY});
+    model->SetBottomRightArea({newPage.pageOriginX + newPage.widthReal, newPage.pageOriginY + newPage.heightReal});
 
     installModel(std::move(model));
     model_->SetChanged(false);
@@ -530,6 +554,10 @@ void MainWindow::createMenus() {
     auto* exitAction = fileMenu->addAction(QStringLiteral("E&xit"));
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
+
+    auto* formatMenu = menuBar()->addMenu(QStringLiteral("F&ormat"));
+    auto* pageSetupAction = formatMenu->addAction(QStringLiteral("&Page Setup..."));
+    connect(pageSetupAction, &QAction::triggered, this, &MainWindow::onPageSetup);
 
     auto* viewMenu = menuBar()->addMenu(QStringLiteral("&View"));
     auto* resetViewAction = viewMenu->addAction(QStringLiteral("&Reset View"));
@@ -821,10 +849,60 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
         return;
     }
 
+    const TDVecUnitSettings unitSettings = model_
+        ? model_->UnitSettings() : TDVecUnitSettings{};
+    const TDVecUnitFormatter formatter(unitSettings);
     coordinateLabel_->setText(
         QStringLiteral("X: %1  Y: %2")
-            .arg(point.x, 0, 'f', 2)
-            .arg(point.y, 0, 'f', 2));
+            .arg(QString::fromStdString(formatter.FormatCoordinate(point.x)))
+            .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
+}
+
+void MainWindow::onPageSetup() {
+    if (!model_) {
+        return;
+    }
+
+    PageSetupDialog dialog(model_->PageSettings(), model_->UnitSettings(), this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    TDVecDocumentSettings newSettings = model_->DocumentSettings();
+    newSettings.pageSettings = dialog.pageSettings();
+    model_->SetDocumentSettings(newSettings);
+
+    const auto& ps = newSettings.pageSettings;
+    model_->SetTopLeftArea({ps.pageOriginX, ps.pageOriginY});
+    model_->SetBottomRightArea({ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal});
+
+    canvas_->resetView();
+    updatePageFormatStatus();
+    statusBar()->showMessage(QStringLiteral("Page setup changed"), 2500);
+}
+
+void MainWindow::updatePageFormatStatus() {
+    if (!pageFormatLabel_) {
+        return;
+    }
+
+    if (!model_) {
+        pageFormatLabel_->setText(QString());
+        return;
+    }
+
+    const auto& ps = model_->PageSettings();
+    const TDVecUnitFormatter formatter(model_->UnitSettings());
+    const QString orientation = ps.orientation == TDVecPageOrientation::Portrait
+        ? QStringLiteral("Portrait") : QStringLiteral("Landscape");
+    const std::string widthStr = formatter.FormatLength(ps.widthReal);
+    const std::string heightStr = formatter.FormatLength(ps.heightReal);
+    pageFormatLabel_->setText(
+        QStringLiteral("%1 %2 — %3 × %4")
+            .arg(QString::fromStdString(ps.formatName))
+            .arg(orientation)
+            .arg(QString::fromStdString(widthStr))
+            .arg(QString::fromStdString(heightStr)));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

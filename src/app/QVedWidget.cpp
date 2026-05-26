@@ -1,5 +1,7 @@
 #include "QVedWidget.h"
 
+#include "vec_measure_scale.h"
+
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -17,12 +19,9 @@
 #include <utility>
 
 namespace {
-constexpr long kWorkspaceWidth = 210000;
-constexpr long kWorkspaceHeight = 296985;
+constexpr double kDefaultWorkspaceWidth = 210000.0;
+constexpr double kDefaultWorkspaceHeight = 297000.0;
 constexpr double kDocumentMargin = 25000.0;
-constexpr long kGridDistance = 10000;
-constexpr long kGridSubDivisions = 10;
-constexpr long kGridResolutionLimit = 1;
 constexpr int kMaxGridPointsPerPaint = 80000;
 constexpr long kMaxGridStep = 1000000000;
 constexpr int kPageScrollOverlapPerThousand = 100;
@@ -31,22 +30,9 @@ constexpr TDRgbColor kSubGridColor = 0x00808080;
 constexpr TDRgbColor kMainGridColor = 0x00282828;
 constexpr TDRgbColor kAxisColor = 0x00000000;
 
-long niceGridStepAtLeast(double minimumStep) {
-    if (minimumStep <= 1.0) {
-        return 1;
-    }
-
-    const double exponent = std::floor(std::log10(minimumStep));
-    const double base = std::pow(10.0, exponent);
-    for (const double multiplier : {1.0, 2.0, 5.0, 10.0}) {
-        const double candidate = multiplier * base;
-        if (candidate >= minimumStep) {
-            return static_cast<long>(std::ceil(candidate));
-        }
-    }
-
-    return static_cast<long>(std::ceil(10.0 * base));
-}
+constexpr double kDefaultGridMajorStep = 10000.0;
+constexpr int kDefaultGridSubdivisions = 10;
+constexpr long kDefaultGridResolutionLimit = 1;
 
 bool isGridMainPoint(long x, long y, long mainStep) {
     if (mainStep <= 0) {
@@ -75,6 +61,8 @@ QVedWidget::QVedWidget(QWidget* parent)
       snapMousePoint_{0.0, 0.0},
       selectionAreaStart_{0.0, 0.0},
       selectionAreaCurrent_{0.0, 0.0},
+      documentSettings_(nullptr),
+      showPageBounds_(true),
       showGrid_(false),
       showRulers_(false),
       gridLock_(false),
@@ -174,6 +162,10 @@ void QVedWidget::setInteractionMode(InteractionMode mode) {
 
 QVedWidget::InteractionMode QVedWidget::interactionMode() const {
     return interactionMode_;
+}
+
+void QVedWidget::setDocumentSettings(const TDVecDocumentSettings* settings) {
+    documentSettings_ = settings;
 }
 
 void QVedWidget::setShowGrid(bool showGrid) {
@@ -327,7 +319,7 @@ void QVedWidget::paintEvent(QPaintEvent* event) {
     QPainter painter(this);
     painter.fillRect(rect(), QColor(232, 232, 232));
     const QRect viewRect = canvasRect();
-    painter.fillRect(viewRect, QColor(250, 250, 248));
+    painter.fillRect(viewRect, QColor(232, 232, 232));
     painter.setClipRect(viewRect);
 
     graphicEngine_.SetDeviceMetrics(
@@ -337,6 +329,7 @@ void QVedWidget::paintEvent(QPaintEvent* event) {
         painter.device()->logicalDpiY());
     initializeViewIfNeeded();
     graphicEngine_.SetPainter(&painter);
+    drawPageBounds();
     drawGrid();
     drawAxes();
     if (paintContentCallback_) {
@@ -532,17 +525,21 @@ void QVedWidget::initializeViewIfNeeded() {
         return;
     }
 
-    graphicEngine_.SetWorkSpaceRange(0.0, 0.0, kWorkspaceWidth, kWorkspaceHeight);
+    const double originX = documentSettings_ ? documentSettings_->pageSettings.pageOriginX : 0.0;
+    const double originY = documentSettings_ ? documentSettings_->pageSettings.pageOriginY : 0.0;
+    const double pageWidth = documentSettings_ ? documentSettings_->pageSettings.widthReal : kDefaultWorkspaceWidth;
+    const double pageHeight = documentSettings_ ? documentSettings_->pageSettings.heightReal : kDefaultWorkspaceHeight;
+    graphicEngine_.SetWorkSpaceRange(originX, originY, originX + pageWidth, originY + pageHeight);
     graphicEngine_.SetWorldSpaceRange(
-        -kDocumentMargin,
-        -kDocumentMargin,
-        kWorkspaceWidth + kDocumentMargin,
-        kWorkspaceHeight + kDocumentMargin);
+        originX - kDocumentMargin,
+        originY - kDocumentMargin,
+        originX + pageWidth + kDocumentMargin,
+        originY + pageHeight + kDocumentMargin);
     graphicEngine_.SetViewRange(
-        -kDocumentMargin,
-        -kDocumentMargin,
-        kWorkspaceWidth + kDocumentMargin,
-        kWorkspaceHeight + kDocumentMargin);
+        originX - kDocumentMargin,
+        originY - kDocumentMargin,
+        originX + pageWidth + kDocumentMargin,
+        originY + pageHeight + kDocumentMargin);
     viewInitialized_ = true;
     updateScrollBars();
 }
@@ -707,16 +704,23 @@ void QVedWidget::drawGrid() {
     const double bottom = std::max(viewRange.Top, viewRange.Bottom);
     const double visibleWidth = std::max(1.0, right - left);
     const double visibleHeight = std::max(1.0, bottom - top);
+
+    const double gridMajorStep = documentSettings_ ? documentSettings_->gridSettings.majorStepReal : kDefaultGridMajorStep;
+    const int gridSubdivisions = documentSettings_ ? documentSettings_->gridSettings.subdivisions : kDefaultGridSubdivisions;
+    const long gridResLimit = documentSettings_ ? documentSettings_->gridSettings.resolutionLimitPixels : kDefaultGridResolutionLimit;
+
     const double minStepByPixel = std::max(
-        std::fabs(graphicEngine_.ScreenToXVal(kGridResolutionLimit)),
-        std::fabs(graphicEngine_.ScreenToYVal(kGridResolutionLimit)));
+        std::fabs(graphicEngine_.ScreenToXVal(gridResLimit)),
+        std::fabs(graphicEngine_.ScreenToYVal(gridResLimit)));
     const double minStepByPointBudget = std::sqrt((visibleWidth * visibleHeight) / kMaxGridPointsPerPaint);
+    const double minorFromPreferred = (gridSubdivisions > 0)
+        ? gridMajorStep / static_cast<double>(gridSubdivisions) : gridMajorStep;
     const double minimumStep = std::max({
-        static_cast<double>(std::max(1L, kGridDistance / kGridSubDivisions)),
+        minorFromPreferred,
         minStepByPixel,
         minStepByPointBudget
     });
-    const long gridStep = niceGridStepAtLeast(minimumStep);
+    const long gridStep = NiceStepAtLeast(minimumStep);
 
     const long firstX = static_cast<long>(std::floor(left / static_cast<double>(gridStep))) * gridStep;
     const long lastX = static_cast<long>(std::ceil(right / static_cast<double>(gridStep))) * gridStep;
@@ -729,7 +733,7 @@ void QVedWidget::drawGrid() {
         return;
     }
 
-    const long mainStep = std::max(kGridDistance, gridStep);
+    const long mainStep = std::max(static_cast<long>(gridMajorStep), gridStep);
     const bool drawSubGrid = gridStep < mainStep;
     const TDRgbColor oldColor = graphicEngine_.GetDrawColor();
 
@@ -785,7 +789,50 @@ void QVedWidget::drawRulers() {
         return;
     }
 
-    graphicEngine_.DrawRulers(kGridDistance, kGridSubDivisions, kGridResolutionLimit);
+    const TDVecUnitSettings unitSettings = documentSettings_
+        ? documentSettings_->unitSettings : TDVecUnitSettings{};
+    const double gridMajorStep = documentSettings_
+        ? documentSettings_->gridSettings.majorStepReal : kDefaultGridMajorStep;
+    const int gridSubdivisions = documentSettings_
+        ? documentSettings_->gridSettings.subdivisions : kDefaultGridSubdivisions;
+    const long gridResLimit = documentSettings_
+        ? documentSettings_->gridSettings.resolutionLimitPixels : kDefaultGridResolutionLimit;
+
+    const TDVecUnitFormatter formatter(unitSettings);
+    const TDVecMeasureScaleCalculator calculator(unitSettings);
+    const double realPerPixel = std::fabs(graphicEngine_.ScreenToXVal(1));
+    const TDVecMeasureScale scale = calculator.CalculateForView(
+        realPerPixel, gridResLimit, gridMajorStep, gridSubdivisions);
+
+    graphicEngine_.DrawRulers(scale, formatter);
+}
+
+void QVedWidget::drawPageBounds() {
+    if (!showPageBounds_) {
+        return;
+    }
+
+    const double originX = documentSettings_ ? documentSettings_->pageSettings.pageOriginX : 0.0;
+    const double originY = documentSettings_ ? documentSettings_->pageSettings.pageOriginY : 0.0;
+    const double pageWidth = documentSettings_ ? documentSettings_->pageSettings.widthReal : kDefaultWorkspaceWidth;
+    const double pageHeight = documentSettings_ ? documentSettings_->pageSettings.heightReal : kDefaultWorkspaceHeight;
+
+    const int screenLeft = static_cast<int>(graphicEngine_.RealToXPos(originX));
+    const int screenTop = static_cast<int>(graphicEngine_.RealToYPos(originY));
+    const int screenRight = static_cast<int>(graphicEngine_.RealToXPos(originX + pageWidth));
+    const int screenBottom = static_cast<int>(graphicEngine_.RealToYPos(originY + pageHeight));
+
+    QPainter* painter = graphicEngine_.Painter();
+    if (!painter) {
+        return;
+    }
+
+    painter->save();
+    const QRect pageRect(screenLeft, screenTop, screenRight - screenLeft, screenBottom - screenTop);
+    painter->fillRect(pageRect, Qt::white);
+    painter->setPen(QPen(QColor(180, 180, 180), 1));
+    painter->drawRect(pageRect);
+    painter->restore();
 }
 
 void QVedWidget::drawAxes() {
@@ -1063,7 +1110,9 @@ TDMatPoint QVedWidget::snapPointToGrid(TDMatPoint point) const {
         return point;
     }
 
-    const double snapStep = static_cast<double>(std::max(1L, kGridDistance / kGridSubDivisions));
+    const double majorStep = documentSettings_ ? documentSettings_->gridSettings.majorStepReal : kDefaultGridMajorStep;
+    const int subdivisions = documentSettings_ ? documentSettings_->gridSettings.subdivisions : kDefaultGridSubdivisions;
+    const double snapStep = (subdivisions > 0) ? majorStep / static_cast<double>(subdivisions) : majorStep;
     point.x = std::round(point.x / snapStep) * snapStep;
     point.y = std::round(point.y / snapStep) * snapStep;
     return point;
