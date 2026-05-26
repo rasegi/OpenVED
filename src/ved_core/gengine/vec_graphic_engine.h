@@ -32,7 +32,7 @@ public:
     virtual void    DrawLineOutLine(const TDMatLine* pParams) = 0;
     virtual void    DrawConstructPolygon(const TDMatPointsArray* pParams) = 0;
     virtual void    DrawBoxOutLine(TDMatPoint MatPoint1, TDMatPoint MatPoint2) = 0;
-    virtual void    DrawRulers(long nDist, long nSubDiv, long nResLimit) {};
+    virtual void    DrawRulers(const struct TDVecMeasureScale& scale, const class TDVecUnitFormatter& formatter) {};
 
     virtual void    DrawNode(double x, double y , TDNodeType eNodeType , bool bLock) = 0;
     virtual void    DrawFrame(const TDMatRect* pParams) = 0;

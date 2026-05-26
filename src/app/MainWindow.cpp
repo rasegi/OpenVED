@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "QVedWidget.h"
+#include "vec_document_settings.h"
 #include "vec_edit_cad.h"
 #include "vec_font.h"
 #include "vec_font_manager.h"
@@ -226,7 +227,8 @@ MainWindow::~MainWindow() = default;
 void MainWindow::initializeEditor() {
     model_ = std::make_unique<TDVecModel>();
     model_->SetTopLeftArea({0.0, 0.0});
-    model_->SetBottomRightArea({210000.0, 296985.0});
+    model_->SetBottomRightArea({model_->PageSettings().widthReal, model_->PageSettings().heightReal});
+    canvas_->setDocumentSettings(&model_->DocumentSettings());
 
     editor_ = std::make_unique<TDVecEditCad>();
     editor_->SetVecModel(model_.get());
@@ -294,6 +296,7 @@ void MainWindow::installModel(std::unique_ptr<TDVecModel> model, const VEDDocume
     }
 
     model_ = std::move(model);
+    canvas_->setDocumentSettings(&model_->DocumentSettings());
     if (editor_) {
         editor_->TmpClear();
         editor_->SetVecModel(model_.get());
@@ -350,7 +353,7 @@ void MainWindow::newDocument() {
 
     auto model = std::make_unique<TDVecModel>();
     model->SetTopLeftArea({0.0, 0.0});
-    model->SetBottomRightArea({210000.0, 296985.0});
+    model->SetBottomRightArea({model->PageSettings().widthReal, model->PageSettings().heightReal});
 
     installModel(std::move(model));
     model_->SetChanged(false);
@@ -821,10 +824,13 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
         return;
     }
 
+    const TDVecUnitSettings unitSettings = model_
+        ? model_->UnitSettings() : TDVecUnitSettings{};
+    const TDVecUnitFormatter formatter(unitSettings);
     coordinateLabel_->setText(
         QStringLiteral("X: %1  Y: %2")
-            .arg(point.x, 0, 'f', 2)
-            .arg(point.y, 0, 'f', 2));
+            .arg(QString::fromStdString(formatter.FormatCoordinate(point.x)))
+            .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

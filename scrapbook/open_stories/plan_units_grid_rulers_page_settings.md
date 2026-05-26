@@ -149,20 +149,29 @@ Hinweis: Die bisherige Workspace-Hoehe `296985` wird auf `297000` (exaktes A4) k
 
 ### Tests: `tests/ved_core_document_settings_tests.cpp`
 
-- [ ] PageFormats A4 Portrait: `210000 x 297000`
-- [ ] PageFormats A4 Landscape: `297000 x 210000`
-- [ ] PageFormats A3 Portrait: `297000 x 420000`
-- [ ] PageFormats A5 Portrait: `148000 x 210000`
-- [ ] PageFormats Letter Portrait: `215900 x 279400` (8.5 x 11 in)
-- [ ] Custom: beliebige Werte
-- [ ] TDVecModel Default-DocumentSettings = A4/mm/10000-10
-- [ ] SetDocumentSettings + Getter-Roundtrip
-- [ ] Snapshot: DocumentSettings wird mitgesichert und wiederhergestellt
-- [ ] SetDocumentSettings markiert Model als changed
+- [x] PageFormats A4 Portrait: `210000 x 297000`
+- [x] PageFormats A4 Landscape: `297000 x 210000`
+- [x] PageFormats A3 Portrait: `297000 x 420000`
+- [x] PageFormats A3 Landscape: `420000 x 297000`
+- [x] PageFormats A5 Portrait: `148000 x 210000`
+- [x] PageFormats Letter Portrait: `215900 x 279400` (8.5 x 11 in)
+- [x] PageFormats Letter Landscape: `279400 x 215900`
+- [x] Custom: beliebige Werte
+- [x] DocumentSettings Defaults = A4/mm/10000-10
+- [x] TDVecModel Default-DocumentSettings korrekt
+- [x] Convenience-Getter (UnitSettings, GridSettings, PageSettings)
+- [x] SetDocumentSettings + Getter-Roundtrip
+- [x] SetDocumentSettings markiert Model als changed
+- [x] Snapshot: DocumentSettings wird mitgesichert
+- [x] Snapshot: RestoreSnapshot stellt DocumentSettings wieder her
 
 ### Log
 
-_(wird bei Umsetzung ausgefuellt)_
+- 2026-05-26: `vec_document_settings.h/cpp` erstellt, `TDVecModel` erweitert
+- 15 Tests in `ved_core_document_settings_tests.cpp`, alle bestanden
+- `bottomRightArea` von 296985 auf 297000 korrigiert (exaktes A4)
+- Snapshot um DocumentSettings erweitert (CreateSnapshot + RestoreSnapshot)
+- Gesamte Test-Suite: 24/24 bestanden, App baut sauber
 
 ---
 
@@ -202,11 +211,70 @@ Aenderungen an bestehenden Qt-Dateien. Keine neuen Dateien.
 Kein eigenes Test-Target — Verifikation visuell:
 
 - [ ] App starten: Grid sieht identisch aus wie vorher
-- [ ] Ruler zeigt dieselben Ticks und Labels
+- [ ] Ruler zeigt dieselben Ticks und Labels (jetzt mit mm-Suffix)
 - [ ] Statusbar zeigt Koordinaten mit Einheit
 - [ ] Grid-Snap funktioniert wie vorher
 - [ ] Verschiedene Zoom-Stufen: Grid-Aufloesung passt sich an
-- [ ] Bestehende `ctest`-Suite laeuft weiterhin durch
+- [x] Bestehende `ctest`-Suite laeuft weiterhin durch (24/24)
+
+### Log
+
+- 2026-05-26: Qt-Anbindung umgesetzt
+- `DrawRulers` Signatur geaendert: `(long,long,long)` → `(TDVecMeasureScale&, TDVecUnitFormatter&)`
+- `niceGridStepAtLeast` aus QVedWidget.cpp entfernt → nutzt `NiceStepAtLeast` aus Core
+- `niceRulerStepAtLeast` + `isMainRulerValue` aus vec_graphic_engine_qt.cpp entfernt
+- Grid/Ruler/Snap lesen Settings aus DocumentSettings (mit Fallback auf Defaults)
+- Statusbar nutzt `TDVecUnitFormatter` fuer formatierte Koordinaten
+- Workspace-Groesse aus PageSettings statt Hardcoded-Konstanten
+- QVedWidget erhaelt DocumentSettings-Pointer via `setDocumentSettings()`
+- Build + 24/24 Tests gruen, App baut sauber
+- Visuelle Verifikation steht noch aus
+
+---
+
+## Step E: Page Bounds anzeigen
+
+### Konzept: Papier als visuelle Schablone
+
+Das Papier ist **nicht** der Zeichenbereich. Der Zeichenbereich (Workspace) ist unbegrenzt —
+man kann beliebig grosse Objekte zeichnen, frei zoomen und scrollen. Das Papier ist eine
+**visuelle Schablone**, die zeigt welcher Ausschnitt spaeter gedruckt wird.
+
+Die Position der Schablone im Koordinatensystem wird durch `pageOriginX` / `pageOriginY`
+in `TDVecPageSettings` bestimmt (default: `0.0, 0.0`). Damit kann man das Papier-Rechteck
+frei im Koordinatensystem verschieben, z.B. um einen bestimmten Teil der Zeichnung
+als Druckausschnitt zu waehlen.
+
+### Was wird gemacht
+
+**`vec_document_settings.h` (Core):**
+- `TDVecPageSettings` erhaelt zwei neue Felder: `pageOriginX = 0.0`, `pageOriginY = 0.0`
+
+**`QVedWidget.h/cpp` (Qt):**
+- Neues Member `bool showPageBounds_ = true`
+- Neue Methode `drawPageBounds()`:
+  - Page-Bereich (`{originX, originY}` bis `{originX+width, originY+height}`) bleibt weiss
+  - Bereich ausserhalb der Page wird hellgrau gefuellt (Overlay mit `QColor(200, 200, 200, 120)`)
+  - Duenne Linie am Page-Rand (1px, dunkelgrau)
+- Umsetzung: 4 Rechtecke (links, rechts, oben, unten) um die Page herum fuellen
+- Aufruf in `paintEvent` vor `drawGrid()`
+- `showPageBounds_` ist View-State — nicht im Dokument gespeichert
+
+### Tests
+
+**Core-Tests** (in `ved_core_document_settings_tests.cpp` ergaenzen):
+
+- [ ] PageSettings Default: `pageOriginX == 0.0`, `pageOriginY == 0.0`
+- [ ] PageFormats (A4, A3 etc.) haben Origin `0.0, 0.0`
+- [ ] Snapshot: pageOriginX/Y werden mitgesichert und wiederhergestellt
+
+**Visuell:**
+
+- [ ] Page-Bereich ist weiss, Bereich ausserhalb ist hellgrau
+- [ ] Page-Rand als duenne Linie sichtbar
+- [ ] Zoom/Pan aendert nur die Darstellung, nicht die Page-Groesse
+- [ ] Grid und Objekte werden ueber der Page korrekt gezeichnet
+- [ ] Bestehende Operationen sind nicht beeintraechtigt
 
 ### Log
 
@@ -214,27 +282,76 @@ _(wird bei Umsetzung ausgefuellt)_
 
 ---
 
-## Step E: Page Bounds anzeigen
+## Step F: Papierformat in Fusszeile
 
 ### Was wird gemacht
 
-**`QVedWidget.h/cpp` (Qt):**
-- Neues Member `bool showPageBounds_ = true`
-- Neue Methode `drawPageBounds()`:
-  - Zeichnet Rechteck von `{0,0}` bis `{pageSettings.widthReal, pageSettings.heightReal}`
-  - Bereich ausserhalb der Page leicht abgedunkelt (halbdurchsichtiges Overlay)
-  - Page-Rand als dünne Linie
-- Aufruf in `paintEvent` vor `drawGrid()`
-- `showPageBounds_` ist View-State — nicht im Dokument gespeichert
+**`MainWindow.h/cpp` (Qt):**
+- Neues Member `QLabel* pageFormatLabel_`
+- In Konstruktor: Label in Statusbar einfuegen (zwischen Operation und Koordinaten)
+- Neue Methode `updatePageFormatStatus()`:
+  - Zeigt z.B. `"A4 Portrait — 210.00 × 297.00 mm"`
+  - Nutzt `TDVecUnitFormatter` fuer die Dimensionen in der aktuellen Display-Einheit
+  - Format: `"{formatName} {Orientation} — {breite} × {hoehe} {einheit}"`
+- Aufruf bei:
+  - `initializeEditor()` (initialer Zustand)
+  - `installModel()` (Dokument geladen)
+  - `newDocument()` (neues Dokument)
+  - Spaeter: nach Papierformat-Aenderung (Step G)
 
 ### Tests
 
 Kein eigenes Test-Target — Verifikation visuell:
 
-- [ ] Page-Rahmen sichtbar bei `0,0` bis Seitengroesse
-- [ ] Bereich ausserhalb der Page ist visuell abgegrenzt
-- [ ] Zoom/Pan aendert nur die Darstellung, nicht die Page-Groesse
-- [ ] Bestehende Objekte und Operationen sind nicht beeintraechtigt
+- [ ] Fusszeile zeigt Papierformat + Dimensionen mit Einheit
+- [ ] Bei neuem Dokument: `"A4 Portrait — 210.00 × 297.00 mm"`
+- [ ] Label ist lesbar positioniert zwischen Operation und Koordinaten
+
+### Log
+
+_(wird bei Umsetzung ausgefuellt)_
+
+---
+
+## Step G: Papierformat-Wechsel Dialog
+
+### Was wird gemacht
+
+**Neue Datei `src/app/PageSetupDialog.h/cpp` (Qt):**
+- `class PageSetupDialog : public QDialog`
+- UI-Elemente:
+  - `QComboBox` fuer Format (A4, A3, A5, Letter, Custom)
+  - `QComboBox` oder Radio-Buttons fuer Orientation (Portrait, Landscape)
+  - `QDoubleSpinBox` fuer Breite und Hoehe (nur bei Custom editierbar, sonst read-only)
+  - Einheit-Anzeige neben den SpinBoxes (aus aktueller DisplayUnit)
+  - OK / Abbrechen Buttons
+- Bei Format-Wechsel: Breite/Hoehe automatisch aktualisieren aus `TDVecPageFormats`
+- Bei Orientation-Wechsel: Breite und Hoehe tauschen
+- Rueckgabe: `TDVecPageSettings` mit den gewaehlten Werten
+
+**`MainWindow.h/cpp` (Qt):**
+- Neuer Menue-Eintrag: `Format > Page Setup...`
+- Bei OK:
+  - `model_->SetDocumentSettings(...)` mit neuen PageSettings
+  - `canvas_->setDocumentSettings(...)` aktualisieren
+  - Workspace-Range und View anpassen (BottomRightArea + resetView)
+  - `updatePageFormatStatus()` aufrufen (Step F)
+  - Undo-Support: Snapshot vor Aenderung erstellen
+
+**`CMakeLists.txt`:**
+- `PageSetupDialog.h/cpp` in `add_executable` einfuegen
+
+### Tests
+
+Kein eigenes Test-Target — Verifikation visuell:
+
+- [ ] Dialog oeffnet sich ueber Menue
+- [ ] Format-Wechsel aktualisiert Breite/Hoehe korrekt
+- [ ] Orientation-Wechsel tauscht Breite/Hoehe
+- [ ] Custom erlaubt freie Eingabe
+- [ ] OK uebernimmt Aenderung — Page Bounds (Step E) und Fusszeile (Step F) aktualisieren sich
+- [ ] Abbrechen verwirft Aenderung
+- [ ] Undo stellt vorherige Page-Groesse wieder her
 
 ### Log
 
@@ -244,9 +361,10 @@ _(wird bei Umsetzung ausgefuellt)_
 
 ## Nicht in diesem Plan
 
-- **Step F (Persistenz):** Wird in `story_ved_document_persistence_v1_0_1.md` integriert
-- **Step 7 (Arbeitsvorlagen):** Eigene Story `story_document_templates_new_document.md`
-- **Step 8 (PDF/Print):** Eigene Story `story_pdf_print_export.md`
+- **Persistenz:** Wird in `story_ved_document_persistence_v1_0_1.md` integriert
+- **Arbeitsvorlagen:** Eigene Story `story_document_templates_new_document.md`
+- **PDF/Print:** Eigene Story `story_pdf_print_export.md`
+- **Druckraender (Print Margins):** Gestrichelte Linie innerhalb der Page-Schablone, die den bedruckbaren Bereich zeigt — gehoert zur PDF/Print-Story
 
 ---
 
@@ -259,6 +377,7 @@ _(wird bei Umsetzung ausgefuellt)_
 | `src/ved_core/main/vec_units.h/cpp` | Core | DisplayUnit, UnitSettings, UnitFormatter |
 | `src/ved_core/main/vec_measure_scale.h/cpp` | Core | MeasureScale, MeasureTick, ScaleCalculator |
 | `src/ved_core/main/vec_document_settings.h/cpp` | Core | GridSettings, PageSettings, DocumentSettings, PageFormats |
+| `src/app/PageSetupDialog.h/cpp` | Qt | Dialog fuer Papierformat-Wechsel |
 | `tests/ved_core_units_tests.cpp` | Test | Unit-Konvertierung und Formatierung |
 | `tests/ved_core_measure_scale_tests.cpp` | Test | Scale-Berechnung und Tick-Erzeugung |
 | `tests/ved_core_document_settings_tests.cpp` | Test | PageFormats, DocumentSettings, Snapshot |
@@ -267,9 +386,9 @@ _(wird bei Umsetzung ausgefuellt)_
 
 | Datei | Modul | Aenderung |
 |---|---|---|
-| `CMakeLists.txt` | Build | 6 neue Source-Dateien, 3 neue Test-Targets |
+| `CMakeLists.txt` | Build | 6+2 Source-Dateien, 3 Test-Targets |
 | `src/ved_core/main/vec_model.h/cpp` | Core | DocumentSettings Member, Getter/Setter, Snapshot |
 | `src/ved_core/gengine/vec_graphic_engine.h` | Core | DrawRulers Signatur |
 | `src/ved_qt/gengine/vec_graphic_engine_qt.cpp` | Qt | DrawRulers implementiert neue Signatur |
 | `src/app/QVedWidget.h/cpp` | Qt | Grid/Ruler/Snap aus Model, drawPageBounds |
-| `src/app/MainWindow.cpp` | Qt | Statusbar-Formatter, Workspace-Init |
+| `src/app/MainWindow.h/cpp` | Qt | Statusbar (Koordinaten + Papierformat), Page-Setup-Menue |

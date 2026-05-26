@@ -45,8 +45,9 @@ bool TDVecModelHitResult::IsNodeHit() const {
 
 TDVecModel::TDVecModel()
     : topLeftArea_{0.0, 0.0},
-      bottomRightArea_{210000.0, 296985.0},
+      bottomRightArea_{210000.0, 297000.0},
       defaultColor_(0x00000000),
+      documentSettings_{},
       changed_(false),
       revision_(0) {
 }
@@ -105,11 +106,33 @@ std::uint64_t TDVecModel::Revision() const {
     return revision_;
 }
 
+const TDVecDocumentSettings& TDVecModel::DocumentSettings() const {
+    return documentSettings_;
+}
+
+const TDVecUnitSettings& TDVecModel::UnitSettings() const {
+    return documentSettings_.unitSettings;
+}
+
+const TDVecGridSettings& TDVecModel::GridSettings() const {
+    return documentSettings_.gridSettings;
+}
+
+const TDVecPageSettings& TDVecModel::PageSettings() const {
+    return documentSettings_.pageSettings;
+}
+
+void TDVecModel::SetDocumentSettings(const TDVecDocumentSettings& settings) {
+    documentSettings_ = settings;
+    MarkChanged();
+}
+
 TDVecModelSnapshot TDVecModel::CreateSnapshot() const {
     TDVecModelSnapshot snapshot;
     snapshot.topLeftArea = topLeftArea_;
     snapshot.bottomRightArea = bottomRightArea_;
     snapshot.defaultColor = defaultColor_;
+    snapshot.documentSettings = documentSettings_;
     snapshot.objects.reserve(objects_.size());
     for (const auto& object : objects_) {
         if (object) {
@@ -133,6 +156,7 @@ void TDVecModel::RestoreSnapshot(const TDVecModelSnapshot& snapshot, bool change
     topLeftArea_ = snapshot.topLeftArea;
     bottomRightArea_ = snapshot.bottomRightArea;
     defaultColor_ = snapshot.defaultColor;
+    documentSettings_ = snapshot.documentSettings;
     changed_ = changed;
     ++revision_;
 }

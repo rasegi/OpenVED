@@ -2,6 +2,7 @@
 
 #include "vec_graphic_engine.h"
 #include "vec_graphic_engine_screen_state.h"
+#include "vec_measure_scale.h"
 
 #include <QPixmap>
 
@@ -29,7 +30,7 @@ public:
     void DrawLineOutLine(const TDMatLine* pParams) override;
     void DrawConstructPolygon(const TDMatPointsArray* pParams) override;
     void DrawBoxOutLine(TDMatPoint MatPoint1, TDMatPoint MatPoint2) override;
-    void DrawRulers(long nDist, long nSubDiv, long nResLimit) override;
+    void DrawRulers(const TDVecMeasureScale& scale, const TDVecUnitFormatter& formatter) override;
 
     void DrawNode(double x, double y, TDNodeType eNodeType, bool bLock) override;
     void DrawFrame(const TDMatRect* pParams) override;
