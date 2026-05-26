@@ -243,6 +243,22 @@ MainWindow::MainWindow(QWidget* parent)
     statusBarSplitter_->setStretchFactor(2, 2);
     statusBar()->addPermanentWidget(statusBarSplitter_, 1);
     statusBar()->showMessage(QStringLiteral("Ready"));
+
+    const QString lastDoc = QSettings().value(QString::fromLatin1(kSettingsLastDocumentPath)).toString();
+    if (!lastDoc.isEmpty() && QFile::exists(lastDoc) && loadDefaultVecFont() && fontManager_) {
+        QFile file(lastDoc);
+        if (file.open(QIODevice::ReadOnly)) {
+            const QByteArray data = file.readAll();
+            VEDModelReadResult result = LoadVecModelFromBytes(data.constData(), static_cast<std::size_t>(data.size()), *fontManager_);
+            if (result.Ok()) {
+                installModel(std::move(result.model), &result.viewState);
+                currentDocumentPath_ = lastDoc;
+                lastDocumentDirectory_ = QFileInfo(lastDoc).absolutePath();
+                updateWindowTitle();
+                showFontResolutionWarnings(result.fontResolution);
+            }
+        }
+    }
 }
 
 MainWindow::~MainWindow() = default;
@@ -671,6 +687,7 @@ void MainWindow::writeSettings() const {
     if (!lastDocumentDirectory_.isEmpty()) {
         settings.setValue(QString::fromLatin1(kSettingsLastDocumentDirectory), lastDocumentDirectory_);
     }
+    settings.setValue(QString::fromLatin1(kSettingsLastDocumentPath), currentDocumentPath_);
 }
 
 void MainWindow::resetWindowLayout() {
