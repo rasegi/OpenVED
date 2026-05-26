@@ -68,6 +68,7 @@ private:
     void setActiveOperationStatus(const QString& operationName);
     void updateCoordinateStatus(TDMatPoint point, bool valid);
     void updatePageFormatStatus();
+    void onPageSetup();
     void createCurveDock();
     void showPolyCurveDock();
     void applyPolyCurveSettings();

@@ -437,7 +437,17 @@ Kein eigenes Test-Target — Verifikation visuell:
 
 ### Log
 
-_(wird bei Umsetzung ausgefuellt)_
+- 2026-05-26: `PageSetupDialog.h/cpp` erstellt
+- Dialog mit Format (A4/A3/A5/Letter/Custom), Orientation, Breite/Hoehe, Origin X/Y
+- Einheiten-Logik: SpinBoxes in DisplayUnit, intern in Real-Einheiten
+- Standard-Formate: Breite/Hoehe read-only, Custom: editierbar
+- Orientation-Wechsel: Breite/Hoehe tauschen (Standard: aus PageFormats, Custom: swap)
+- Menue-Eintrag `Format > Page Setup...` in MainWindow
+- `onPageSetup()`: Dialog oeffnen, bei OK Model + View + Statusbar aktualisieren
+- CMakeLists.txt um PageSetupDialog.h/cpp erweitert
+- Undo-Support: Model wird als changed markiert, vollstaendiger Snapshot-Undo spaeter
+- Build + 24/24 Tests gruen
+- Visuelle Verifikation steht noch aus
 
 ---
 

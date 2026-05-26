@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "PageSetupDialog.h"
 #include "QVedWidget.h"
 #include "vec_document_settings.h"
 #include "vec_edit_cad.h"
@@ -554,6 +555,10 @@ void MainWindow::createMenus() {
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
 
+    auto* formatMenu = menuBar()->addMenu(QStringLiteral("F&ormat"));
+    auto* pageSetupAction = formatMenu->addAction(QStringLiteral("&Page Setup..."));
+    connect(pageSetupAction, &QAction::triggered, this, &MainWindow::onPageSetup);
+
     auto* viewMenu = menuBar()->addMenu(QStringLiteral("&View"));
     auto* resetViewAction = viewMenu->addAction(QStringLiteral("&Reset View"));
     connect(resetViewAction, &QAction::triggered, this, [this] {
@@ -851,6 +856,29 @@ void MainWindow::updateCoordinateStatus(TDMatPoint point, bool valid) {
         QStringLiteral("X: %1  Y: %2")
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.x)))
             .arg(QString::fromStdString(formatter.FormatCoordinate(point.y))));
+}
+
+void MainWindow::onPageSetup() {
+    if (!model_) {
+        return;
+    }
+
+    PageSetupDialog dialog(model_->PageSettings(), model_->UnitSettings(), this);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    TDVecDocumentSettings newSettings = model_->DocumentSettings();
+    newSettings.pageSettings = dialog.pageSettings();
+    model_->SetDocumentSettings(newSettings);
+
+    const auto& ps = newSettings.pageSettings;
+    model_->SetTopLeftArea({ps.pageOriginX, ps.pageOriginY});
+    model_->SetBottomRightArea({ps.pageOriginX + ps.widthReal, ps.pageOriginY + ps.heightReal});
+
+    canvas_->resetView();
+    updatePageFormatStatus();
+    statusBar()->showMessage(QStringLiteral("Page setup changed"), 2500);
 }
 
 void MainWindow::updatePageFormatStatus() {
