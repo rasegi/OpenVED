@@ -299,6 +299,123 @@ Trigger: Tag-Push `v*` (z.B. `v0.1.0`)
 
 ---
 
+## Step 5: WebAssembly Web-Distribution
+
+Dritter Distributionspfad neben DMG/MSI: OpenVED als statisch gehostetes
+Web-Bundle (GitHub Pages) ueber Qt for WebAssembly.
+
+**Abhaengigkeit:** Dieser Step 5 (der WASM-Teil des Plans) ist von
+`story_16_webassembly.md` abhaengig — die dort beschriebene
+Anwendungs-Portierung (PrintSupport-Entkopplung, async Datei-I/O,
+`.vfn`-Font-Bundle, lokaler Font-Server) muss vorliegen, bevor ein
+sinnvolles Bundle gebaut/deployt werden kann. Story 16 haengt ihrerseits an
+`story_15_font_converter_tool.md`. Hier im Plan nur das Build-/Deployment-Setup.
+
+### 5a: `scripts/build-wasm.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BUILD_DIR="${PROJECT_ROOT}/build/wasm"
+DIST_DIR="${BUILD_DIR}/dist"
+
+# Voraussetzung: emsdk aktiviert + Qt for WebAssembly (wasm_singlethread)
+# source "$EMSDK/emsdk_env.sh"
+QT_WASM="${QT_WASM:-$HOME/Qt/6.8.3/wasm_singlethread}"
+
+# 1. Configure (Qt-WASM-Toolchain bindet Emscripten intern ein)
+cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE="$QT_WASM/lib/cmake/Qt6/qt.toolchain.cmake" \
+    -DCMAKE_BUILD_TYPE=Release
+
+# 2. Build
+cmake --build "$BUILD_DIR"
+
+# 3. Bundle sammeln (.html/.js/.wasm/qtloader.js)
+mkdir -p "$DIST_DIR"
+cp "$BUILD_DIR"/ved_qt_app.{html,js,wasm} "$DIST_DIR/" 2>/dev/null || true
+cp "$BUILD_DIR"/qtloader.js "$DIST_DIR/" 2>/dev/null || true
+# index.html = umbenanntes App-HTML fuer Pages-Root
+cp "$DIST_DIR/ved_qt_app.html" "$DIST_DIR/index.html"
+
+echo "WASM-Bundle: $DIST_DIR"
+```
+
+### 5b: GitHub-Actions-Job `build-wasm` (ubuntu-latest)
+
+Ergaenzung in `.github/workflows/release.yml`:
+
+1. Checkout
+2. emsdk installieren via `mymindstorm/setup-emsdk@v14` (Version passend zur
+   Qt-Version festnageln)
+3. Qt for WebAssembly installieren via `jurplel/install-qt-action@v4`
+   (`arch: wasm_singlethread`, plus Desktop-Qt als Host-Tool)
+4. `scripts/build-wasm.sh`
+5. Bundle als Artifact hochladen **und** via `actions/upload-pages-artifact` +
+   `actions/deploy-pages` auf GitHub Pages veroeffentlichen
+   (eigener Job mit `permissions: pages: write, id-token: write`)
+
+Trigger: zusaetzlich zum Tag-Push auch manuell (`workflow_dispatch`), damit die
+Web-Version unabhaengig von Desktop-Releases aktualisiert werden kann.
+
+### 5c: CMake-Anpassung
+
+- MSVC-/Windows-Kit- und `ved_copy_qt_runtime()`-Bloecke hinter
+  `if(NOT EMSCRIPTEN)` / `if(WIN32)` gaten.
+- FreeType/HarfBuzz unter Emscripten ueber Emscripten-Ports / Qt-mitgeliefertes
+  FreeType beziehen (find-/vendor-Logik nur im nativen Zweig).
+- `Qt6::PrintSupport` nur im nativen Zweig linken.
+
+---
+
+## Step 6: Lizenz-Compliance (alle Distributionspfade)
+
+Gilt fuer DMG, MSI **und** WASM. Ausgangslage: `README.md` behauptet
+"uses Qt under the LGPL ... See LICENSE for details", aber `LICENSE` enthielt
+nur den MIT-Text — die Third-Party-Lizenztexte fehlten. Geschlossen durch:
+
+### 6a: Lizenztexte im Repo
+
+`licenses/` mit den vollstaendigen Texten (bereits eingesammelt):
+```
+licenses/
+  Qt-LGPL-3.0.txt         # Qt (Widgets/Gui/PrintSupport)
+  Qt-GPL-3.0.txt          # von LGPLv3 referenziert
+  FreeType-FTL.txt        # FreeType (FTL)
+  HarfBuzz-COPYING.txt    # HarfBuzz (Old MIT)
+  Liberation-OFL-1.1.txt  # gebuendelte Fonts (OFL 1.1)
+  DejaVu-LICENSE.txt      # optional, falls DejaVu gebuendelt wird
+```
+`THIRD_PARTY_LICENSES.md` (Repo-Root) fasst Komponenten, Lizenzen, Link-Art
+und Pflicht-Credits zusammen (u.a. FreeType-FTL-Credit).
+
+### 6b: Lizenzen in jede Distribution packen
+
+- **macOS DMG:** `licenses/` + `THIRD_PARTY_LICENSES.md` ins App-Bundle
+  (`Contents/Resources/licenses/`) via `install()`/`MACOSX_PACKAGE_LOCATION`.
+- **Windows MSI:** `licenses/` ins Staging-Verzeichnis aufnehmen (WiX-Komponente).
+- **WASM:** `licenses/` + `THIRD_PARTY_LICENSES.md` in `build/wasm/dist/`
+  kopieren; in der App ein "About / Licenses"-Dialog oder Link darauf.
+
+### 6c: LGPL-Besonderheiten
+
+- **Nativ:** Qt dynamisch gelinkt (macdeployqt/windeployqt) → LGPLv3-Austausch-
+  barkeit erfuellt.
+- **WASM:** Qt **statisch** gelinkt. LGPLv3 verlangt Relink-Faehigkeit → wird
+  dadurch erfuellt, dass OpenVEDs Quellcode + Build-Anleitung oeffentlich sind
+  (MIT/GitHub). Muss fuer jedes veroeffentlichte WASM-Release gelten.
+- FreeType (FTL) und HarfBuzz (MIT) erlauben statisches Linken ohne Copyleft;
+  nur Lizenztext + FreeType-Credit noetig.
+
+### 6d: README korrigieren
+
+`README.md`-Lizenzabschnitt auf `THIRD_PARTY_LICENSES.md` + `licenses/`
+verweisen lassen (statt nur auf `LICENSE`).
+
+---
+
 ## Step 4: Release-Prozess
 
 1. Version bumpen in `CMakeLists.txt`: `project(ved_qt VERSION X.Y.Z ...)`
@@ -329,9 +446,15 @@ packaging/
 scripts/
   build-macos.sh
   build-windows.ps1
+  build-wasm.sh
 vcpkg.json
-.github/workflows/release.yml
+.github/workflows/release.yml   # + build-wasm-Job + Pages-Deploy
 ```
+
+Hinweis: Der WebAssembly-Pfad (Step 5) und die dafuer noetige App-Portierung
+(PrintSupport-Entkopplung, async Datei-I/O, `.vfn`-Font-Bundle, lokaler
+Font-Server) sind in `story_16_webassembly.md` beschrieben; das Font-Bundle
+setzt das CLI aus `story_15_font_converter_tool.md` voraus.
 
 ## Geaenderte Dateien
 - `CMakeLists.txt` — Icon-Handling, Bundle-Properties, install(), RC-Einbindung
