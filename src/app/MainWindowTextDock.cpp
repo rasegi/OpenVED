@@ -605,7 +605,18 @@ bool MainWindow::loadDefaultVecFont() {
     if (fontManager_ && fontManager_->GetDefaultVecFont()) {
         return true;
     }
+    return rebuildFontProviders();
+}
 
+bool MainWindow::systemFontsEnabled() const {
+#if defined(Q_OS_WASM)
+    return false;
+#else
+    return convertSystemFontsAction_ && convertSystemFontsAction_->isChecked();
+#endif
+}
+
+bool MainWindow::rebuildFontProviders() {
     fontManager_ = std::make_unique<TDFontManager>();
     fontProviders_.clear();
     fontProviders_.push_back(std::make_unique<TDBuiltinVfnFontProvider>(
@@ -644,15 +655,26 @@ bool MainWindow::loadDefaultVecFont() {
             std::make_unique<TDBuiltinVfnFontProvider>(fontId, displayName, resourcePath));
     }
 
-    auto systemFontProvider = std::make_unique<TDQtSystemFontProvider>();
-    auto* systemFontProviderPtr = systemFontProvider.get();
-    fontProviders_.push_back(std::move(systemFontProvider));
+    // System fonts are converted/loaded only when the switch is enabled (never
+    // on WASM). This is what the "Convert System Fonts" menu toggle controls.
+    TDQtSystemFontProvider* systemFontProviderPtr = nullptr;
+    if (systemFontsEnabled()) {
+        auto systemFontProvider = std::make_unique<TDQtSystemFontProvider>();
+        systemFontProviderPtr = systemFontProvider.get();
+        fontProviders_.push_back(std::move(systemFontProvider));
+    }
     for (const std::unique_ptr<IVecFontProvider>& provider : fontProviders_) {
         fontManager_->RegisterProvider(provider.get());
     }
-    SetVecTextShaper([systemFontProviderPtr](const TDVecFont* font, const char* text, std::vector<TDVecShapedGlyph>& glyphs) {
-        return systemFontProviderPtr->ShapeText(font, text, glyphs);
-    });
+    if (systemFontProviderPtr) {
+        SetVecTextShaper([systemFontProviderPtr](const TDVecFont* font, const char* text, std::vector<TDVecShapedGlyph>& glyphs) {
+            return systemFontProviderPtr->ShapeText(font, text, glyphs);
+        });
+    } else {
+        SetVecTextShaper([](const TDVecFont*, const char*, std::vector<TDVecShapedGlyph>&) {
+            return false;
+        });
+    }
 
     if (!fontManager_->SetDefaultFontId("VC:WPS Default")) {
         statusBar()->showMessage(QStringLiteral("wps_default.vfn could not be loaded"), 3000);
@@ -660,13 +682,16 @@ bool MainWindow::loadDefaultVecFont() {
     }
 
     SetDefaultVecTextFont(fontManager_->GetDefaultVecFont());
-    populateTextFontCombo();
+    populateTextFontCombo(true);
     return true;
 }
 
-void MainWindow::populateTextFontCombo()
+void MainWindow::populateTextFontCombo(bool force)
 {
-    if (!textFontCombo_ || !fontManager_ || textFontCombo_->count() > 1) {
+    if (!textFontCombo_ || !fontManager_) {
+        return;
+    }
+    if (!force && textFontCombo_->count() > 1) {
         return;
     }
 

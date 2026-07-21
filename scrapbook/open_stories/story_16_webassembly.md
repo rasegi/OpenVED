@@ -268,9 +268,22 @@ _(nach Umsetzung ausfuellen)_
 - `QStandardPaths::FontsLocation`-Nutzung im WASM-Zweig deaktivieren (Step 4
   uebernimmt Fonts).
 
+### Menue-Switch "Convert System Fonts" (aus Story 15 Step 5)
+
+Der in `story_15_font_converter_tool.md` (Step 5) eingefuehrte Menue-Umschalter
+"Convert System Fonts" ist bereits **WASM-aware implementiert**:
+- Unter `#if defined(Q_OS_WASM)` wird die Action `setEnabled(false)` + unchecked,
+  und `MainWindow::systemFontsEnabled()` liefert immer `false`.
+- Im Browser gibt es keine installierten Systemfonts zum Scannen/Konvertieren —
+  der Switch bleibt daher deaktiviert und ausgegraut; es sind nur die
+  gebuendelten `.vfn`-Fonts (bzw. spaeter der lokale Font-Server, Step 4d)
+  verfuegbar.
+- QSettings-Key `fonts/convertSystemFonts` wird auf WASM nicht geschrieben.
+
 ### Tests
 - [ ] UI-State/Settings ueberleben ein Reload der Browser-Seite.
 - [ ] Kein Absturz/Fehler durch nicht existente Pfade im Browser.
+- [ ] "Convert System Fonts" ist im WASM-Build sichtbar, aber ausgegraut/disabled.
 
 ### Log
 _(nach Umsetzung ausfuellen)_

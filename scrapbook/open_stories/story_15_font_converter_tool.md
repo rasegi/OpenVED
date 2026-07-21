@@ -286,11 +286,45 @@ Umgesetzt am 2026-07-21.
   Hebraeisch, Arabisch/Persisch.
 - App gebaut: Binary 3,1 MB -> **4,2 MB** (Qt-`rcc` komprimiert die Vektordaten
   ~13 MB -> ~1 MB). Headless-Smoke-Test 5 s stabil.
-- **Offen (Story 16 Step 4c):** die Fonts sind im Binary, werden aber noch nicht
-  im `TDBuiltinVfnFontProvider` registriert -> erscheinen noch nicht in der
-  Font-Auswahl der App.
+- Auto-Registrierung ergaenzt (2026-07-21): alle gebuendelten `.vfn` werden beim
+  Font-Setup **automatisch** registriert (kein Hardcoding). Neue Fonts =
+  Script-Zeile + `.vfn` in `resources/font/`, sonst nichts. Legacy `wps_default`
+  (ohne eingebetteten Namen) bleibt der explizite Default; die uebrigen `.vfn`
+  liefern ihre Font-ID ueber `PeekVfnFontName` (liest nur Header + Name).
 
-**Log:** _(nach Umsetzung ausfuellen)_
+### Step 5: Menue-Switch "Convert System Fonts" (persistiert, WASM-aware)
+
+**Was:**
+- Checkbarer Menue-Eintrag im Format-Menue: "Convert System Fonts" (Haekchen).
+- Steuert, ob installierte TrueType/OpenType-Systemfonts gescannt, konvertiert
+  und im Provider bereitgestellt werden — und damit in Text-Operationen /
+  Font-Auswahl erscheinen. Aus = nur gebuendelte VFN-Fonts.
+- Zustand in QSettings persistiert (`fonts/convertSystemFonts`).
+- In WASM **deaktiviert und ausgegraut** (keine Systemfonts im Browser).
+
+**Umsetzung:**
+- `MainWindow::systemFontsEnabled()` = Action-Checked (immer `false` auf WASM
+  via `#if defined(Q_OS_WASM)`).
+- `rebuildFontProviders()` (aus `loadDefaultVecFont` extrahiert) registriert den
+  `TDQtSystemFontProvider` nur bei aktivem Switch; sonst No-op-Shaper.
+- `onToggleSystemFonts(bool)` persistiert + baut Provider neu + Combobox-Refresh.
+- `populateTextFontCombo(bool force)` erlaubt erzwungenes Neu-Befuellen.
+- Menue-Action: `connect` nach initialem `setChecked`, damit Start kein
+  `toggled` ausloest.
+
+**Verhaltensaenderung:** Systemfonts sind jetzt **opt-in** (Default aus). Vorher
+wurden sie immer geladen; Grund fuer den Switch ist, dass Scan/Convert teuer ist.
+
+**Tests:**
+- [x] Build gruen, `ctest` 27/27, App startet stabil (Default: Systemfonts aus,
+      nur Bundle-Fonts). _(2026-07-21)_
+- [ ] Toggle an -> Systemfonts erscheinen in der Font-Auswahl; aus -> verschwinden
+      (visuelle Abnahme durch User).
+- [ ] Zustand ueberlebt Neustart (QSettings).
+
+**Log:**
+Umgesetzt am 2026-07-21. Geaendert: `MainWindow.{h,cpp}`,
+`MainWindowTextDock.cpp`. WASM-Verhalten zusaetzlich in `story_16` ergaenzt.
 
 ## Akzeptanzkriterien
 
@@ -307,7 +341,8 @@ Umgesetzt am 2026-07-21.
 1. Step 1 — Konvertierungslogik entkoppeln (Provider unveraendert).
 2. Step 2 — VFN-Schreibpfad kapseln (Round-Trip gruen).
 3. Step 3 — CLI-Frontend.
-4. Step 4 — Bundle-Fonts konvertieren + Lizenzen.
+4. Step 4 — Bundle-Fonts konvertieren + Lizenzen + Auto-Registrierung.
+5. Step 5 — Menue-Switch "Convert System Fonts" (persistiert, WASM-aware).
 
 ## Bezug zu anderen Stories
 

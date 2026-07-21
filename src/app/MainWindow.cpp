@@ -67,6 +67,7 @@ constexpr auto kSettingsGeometry = "mainWindow/geometry";
 constexpr auto kSettingsState = "mainWindow/state";
 constexpr auto kSettingsLastDocumentDirectory = "documents/lastDirectory";
 constexpr auto kSettingsLastDocumentPath = "documents/lastDocumentPath";
+constexpr auto kSettingsConvertSystemFonts = "fonts/convertSystemFonts";
 
 bool supportsInsertDeleteNode(const TDVecObject* object) {
     if (!object) {
@@ -602,6 +603,23 @@ void MainWindow::createMenus() {
     auto* docSetupAction = formatMenu->addAction(QStringLiteral("&Document Setup..."));
     connect(docSetupAction, &QAction::triggered, this, &MainWindow::onDocumentSetup);
 
+    formatMenu->addSeparator();
+    convertSystemFontsAction_ = formatMenu->addAction(QStringLiteral("Convert &System Fonts"));
+    convertSystemFontsAction_->setCheckable(true);
+    convertSystemFontsAction_->setStatusTip(QStringLiteral(
+        "Scan and convert installed TrueType/OpenType system fonts for use in text objects"));
+#if defined(Q_OS_WASM)
+    // No installed system fonts are reachable in the browser build.
+    convertSystemFontsAction_->setChecked(false);
+    convertSystemFontsAction_->setEnabled(false);
+    convertSystemFontsAction_->setToolTip(QStringLiteral("Not available in the browser build"));
+#else
+    convertSystemFontsAction_->setChecked(
+        QSettings().value(QString::fromLatin1(kSettingsConvertSystemFonts), false).toBool());
+#endif
+    // Connect after the initial setChecked so startup does not emit toggled().
+    connect(convertSystemFontsAction_, &QAction::toggled, this, &MainWindow::onToggleSystemFonts);
+
     auto* viewMenu = menuBar()->addMenu(QStringLiteral("&View"));
     auto* resetViewAction = viewMenu->addAction(QStringLiteral("&Reset View"));
     connect(resetViewAction, &QAction::triggered, this, [this] {
@@ -688,6 +706,21 @@ void MainWindow::writeSettings() const {
         settings.setValue(QString::fromLatin1(kSettingsLastDocumentDirectory), lastDocumentDirectory_);
     }
     settings.setValue(QString::fromLatin1(kSettingsLastDocumentPath), currentDocumentPath_);
+}
+
+void MainWindow::onToggleSystemFonts(bool enabled) {
+#if !defined(Q_OS_WASM)
+    QSettings().setValue(QString::fromLatin1(kSettingsConvertSystemFonts), enabled);
+#endif
+    // Rebuild providers only if the font stack has already been initialised;
+    // otherwise the next loadDefaultVecFont() picks up the new state lazily.
+    if (fontManager_) {
+        rebuildFontProviders();
+    }
+    statusBar()->showMessage(
+        enabled ? QStringLiteral("System fonts enabled — installed fonts converted")
+                : QStringLiteral("System fonts disabled — only bundled fonts shown"),
+        2500);
 }
 
 void MainWindow::resetWindowLayout() {

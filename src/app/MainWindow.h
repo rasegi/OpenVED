@@ -100,7 +100,10 @@ private:
     void hideTextDockIfInactive();
     void startFrameTextBoxCreate();
     bool loadDefaultVecFont();
-    void populateTextFontCombo();
+    bool rebuildFontProviders();
+    bool systemFontsEnabled() const;
+    void onToggleSystemFonts(bool enabled);
+    void populateTextFontCombo(bool force = false);
     const TDVecFont* currentTextVecFont();
     void setTextFontComboToFontName(const char* fontName);
 
@@ -185,6 +188,7 @@ private:
     TextDockMode textDockMode_;
     std::unique_ptr<TDFontManager> fontManager_;
     std::vector<std::unique_ptr<IVecFontProvider>> fontProviders_;
+    QAction* convertSystemFontsAction_ = nullptr;
     QByteArray defaultWindowState_;
     QString currentDocumentPath_;
     QString lastDocumentDirectory_;
