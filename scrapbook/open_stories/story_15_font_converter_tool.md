@@ -117,12 +117,33 @@ Umgesetzt am 2026-07-21 (reines Refactoring, verhaltensneutral).
   Header/Reserve), damit `LoadVecFontFromMemory(headerSize=1024)` es liest.
 
 **Tests:**
-- [ ] Round-Trip: `TDVecFont` → `.vfn` → `LoadVecFontFromMemory` liefert
-      geometrisch identischen Font.
-- [ ] Eine erzeugte `.vfn` ist strukturell kompatibel zu `wps_default.vfn`
-      (Marker-Reihenfolge, Header-Groesse).
+- [x] Round-Trip: `TDVecFont` → `.vfn` → `LoadVecFontFromMemory` liefert
+      identischen Font (Eigenschaften + Glyph-Konturen). _(2026-07-21)_
+- [x] Erzeugte `.vfn` ist strukturell kompatibel zu `wps_default.vfn` —
+      sogar **byte-fuer-byte identisch** (1024-Null-Header, `'vfnt'`, Stream). _(2026-07-21)_
 
-**Log:** _(nach Umsetzung ausfuellen)_
+**Abweichung von der Story-Architektur:** Der Schreibpfad liegt in **`ved_core`**
+(`vec_font.cpp`, direkt neben `LoadVecFontFromMemory`), nicht in `ved_fontconvert`
+— weil er nur `TDVecFont` + `VEDBinaryWriter` nutzt (Core, kein FreeType) und so
+Lesen/Schreiben symmetrisch am selben Ort liegen.
+
+**Log:**
+Umgesetzt am 2026-07-21.
+- Neue Funktion `SaveVecFontToMemory(const TDVecFont&, long headerSize = 1024)
+  -> std::vector<std::byte>` in `src/ved_core/fontengine/vec_font.{h,cpp}`,
+  Gegenstueck zu `LoadVecFontFromMemory`. Schreibt `headerSize` Null-Bytes, den
+  `'vfnt'`-FourCC (`TDVecFont::StreamFourCC()`) und den `WriteTo`-Stream.
+- Byte-Layout an `wps_default.vfn` verifiziert: Header 0x00 * 1024, FourCC bei
+  Offset 0x400, danach Font-Stream.
+- Neues Test-Target `ved_core_vfn_save_roundtrip_tests`
+  (`tests/ved_core_vfn_save_roundtrip_tests.cpp`, linkt `ved_core`): laedt
+  `wps_default.vfn`, serialisiert zurueck und prueft
+  (a) strukturelles Layout, (b) **byte-fuer-byte-Gleichheit** mit dem Original,
+  (c) semantischen Round-Trip nach Reload, (d) Idempotenz beim erneuten Schreiben,
+  (e) nicht-Default-Headergroessen (512, 0).
+- Datei-Schreiben (fstream) folgt in Step 3 (CLI) als duenner Wrapper um die
+  Bytes; der Core-Teil bleibt fstream-frei.
+- Verifikation: `cmake --build` fehlerfrei, `ctest` **26/26** gruen.
 
 ### Step 3: CLI-Frontend `ved_font_converter`
 

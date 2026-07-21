@@ -516,6 +516,10 @@ add_executable(ved_core_vec_font_tests
     tests/ved_core_vec_font_tests.cpp
 )
 
+add_executable(ved_core_vfn_save_roundtrip_tests
+    tests/ved_core_vfn_save_roundtrip_tests.cpp
+)
+
 add_executable(ved_core_text_tests
     tests/ved_core_text_tests.cpp
 )
@@ -635,6 +639,11 @@ target_link_libraries(ved_core_vec_font_tests
         ved_core
 )
 
+target_link_libraries(ved_core_vfn_save_roundtrip_tests
+    PRIVATE
+        ved_core
+)
+
 target_link_libraries(ved_core_text_tests
     PRIVATE
         ved_core
@@ -685,6 +694,7 @@ add_test(NAME ved_core_zoom_pan_tests COMMAND ved_core_zoom_pan_tests)
 add_test(NAME ved_core_serialization_tests COMMAND ved_core_serialization_tests)
 add_test(NAME ved_core_model_io_tests COMMAND ved_core_model_io_tests)
 add_test(NAME ved_core_vec_font_tests COMMAND ved_core_vec_font_tests)
+add_test(NAME ved_core_vfn_save_roundtrip_tests COMMAND ved_core_vfn_save_roundtrip_tests)
 add_test(NAME ved_core_text_tests COMMAND ved_core_text_tests)
 add_test(NAME ved_core_document_settings_tests COMMAND ved_core_document_settings_tests)
 add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)

@@ -624,3 +624,15 @@ std::unique_ptr<TDVecFont> LoadVecFontFromMemory(const void* data, long size, lo
     }
     return TDVecFont::ReadFrom(reader);
 }
+
+std::vector<std::byte> SaveVecFontToMemory(const TDVecFont& font, long headerSize)
+{
+    VEDBinaryWriter writer;
+    if (headerSize > 0) {
+        const std::vector<std::byte> header(static_cast<std::size_t>(headerSize), std::byte{0});
+        writer.WriteBytes(header);
+    }
+    writer.WriteFourCC(TDVecFont::StreamFourCC());
+    font.WriteTo(writer);
+    return writer.Buffer();
+}

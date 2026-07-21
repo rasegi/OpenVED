@@ -3,6 +3,7 @@
 #include "vec_math_base.h"
 #include "vec_polycurve.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -143,3 +144,7 @@ private:
 };
 
 std::unique_ptr<TDVecFont> LoadVecFontFromMemory(const void* data, long size, long headerSize = 1024);
+
+// Serialize a font into the .vfn byte layout: `headerSize` reserved (zero) bytes,
+// the 'vfnt' FourCC, then the TDVecFont stream. Inverse of LoadVecFontFromMemory.
+std::vector<std::byte> SaveVecFontToMemory(const TDVecFont& font, long headerSize = 1024);
