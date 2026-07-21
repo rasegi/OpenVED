@@ -43,6 +43,20 @@ Code-Signing: spaeter, aber Hook-Points werden vorbereitet.
 
 ## Step 1: Packaging-Grundlagen in CMake
 
+**umgesetzt am 2026-07-21** (Branch `plan_installer_build_githun_distribution`):
+- Platzhalter-App-Icon `packaging/icons/openved-1024.png` ("Open" oben, "VED"
+  unten, blauer Verlauf) → `openved.icns` (macOS) + `openved.ico` (Windows);
+  Fenster-Icon als Qt-Ressource `src/app/resources/openved.png` (256px).
+- `packaging/windows/openved.rc`, `packaging/macos/Info.plist.in`
+  (CFBundleName/Identifier/Version/Icon/Category, NSHighResolutionCapable).
+- CMake: Bundle-Properties auf `ved_qt_app`, Icon-Einbindung (macOS-Resource via
+  `MACOSX_PACKAGE_LOCATION`, Windows-RC), `install(TARGETS ... BUNDLE/RUNTIME)`.
+- `src/app/main.cpp`: `setWindowIcon(:/ved/openved.png)`.
+- Verifiziert: Build gruen; `.icns` + `Info.plist` (CFBundleName "OpenVED") im
+  Bundle; `cmake --install` erzeugt vollstaendiges `.app`; Smoke-Test stabil.
+- Offen fuer Step 2: App-Bundle heisst noch `ved_qt_app.app` (OUTPUT_NAME
+  "OpenVED" bewusst zurueckgestellt, um Build/Skripte konsistent umzustellen).
+
 ### 1a: App-Icon erstellen
 
 **Neue Dateien:**

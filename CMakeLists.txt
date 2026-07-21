@@ -404,6 +404,7 @@ qt_add_resources(ved_qt_app "ved_resources"
         ${VED_NODE_IMAGES}
         ${VED_CURSOR_IMAGES}
         ${VED_FONT_RESOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/openved.png"
 )
 
 target_link_libraries(ved_qt_app
@@ -433,6 +434,33 @@ target_link_directories(ved_qt_app
 set_target_properties(ved_qt_app PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_BUNDLE_NAME "OpenVED"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.ved.openved"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_COPYRIGHT "Copyright 2026 Lukas Rasegi"
+    MACOSX_BUNDLE_ICON_FILE "openved.icns"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+)
+
+# App icon: bundle the .icns as a macOS resource, compile the .ico via a
+# Windows resource script.
+if(APPLE)
+    set(VED_MACOS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/icons/openved.icns")
+    set_source_files_properties("${VED_MACOS_ICON}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(ved_qt_app PRIVATE "${VED_MACOS_ICON}")
+endif()
+
+if(WIN32)
+    configure_file(packaging/windows/openved.rc "${CMAKE_CURRENT_BINARY_DIR}/openved.rc" COPYONLY)
+    file(COPY packaging/icons/openved.ico DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+    target_sources(ved_qt_app PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/openved.rc")
+endif()
+
+include(GNUInstallDirs)
+install(TARGETS ved_qt_app
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 function(ved_copy_qt_runtime target)
