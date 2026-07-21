@@ -23,7 +23,9 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QDoubleValidator>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -610,6 +612,38 @@ bool MainWindow::loadDefaultVecFont() {
         QStringLiteral("VC:WPS Default"),
         QStringLiteral("WPS Default"),
         QStringLiteral(":/ved/font/wps_default.vfn")));
+
+    // Auto-register every other bundled .vfn font, using the name embedded in
+    // the file. wps_default is a legacy font without an embedded name, so it
+    // stays explicit above and is skipped here.
+    const QDir bundledFontDir(QStringLiteral(":/ved/font"));
+    const QStringList bundledFonts =
+        bundledFontDir.entryList({QStringLiteral("*.vfn")}, QDir::Files, QDir::Name);
+    for (const QString& fileName : bundledFonts) {
+        if (fileName == QStringLiteral("wps_default.vfn")) {
+            continue;
+        }
+        const QString resourcePath = QStringLiteral(":/ved/font/") + fileName;
+        QFile file(resourcePath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            continue;
+        }
+        const QByteArray data = file.readAll();
+        const std::string embeddedName =
+            PeekVfnFontName(data.constData(), static_cast<long>(data.size()));
+        if (embeddedName.empty()) {
+            continue;
+        }
+        QString fontId = QString::fromUtf8(embeddedName.c_str());
+        QString displayName = fontId;
+        if (displayName.startsWith(QStringLiteral("VC:")) ||
+            displayName.startsWith(QStringLiteral("TT:"))) {
+            displayName = displayName.mid(3);
+        }
+        fontProviders_.push_back(
+            std::make_unique<TDBuiltinVfnFontProvider>(fontId, displayName, resourcePath));
+    }
+
     auto systemFontProvider = std::make_unique<TDQtSystemFontProvider>();
     auto* systemFontProviderPtr = systemFontProvider.get();
     fontProviders_.push_back(std::move(systemFontProvider));

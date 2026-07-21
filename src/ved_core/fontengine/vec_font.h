@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 class TDGraphicEngine;
@@ -148,3 +149,8 @@ std::unique_ptr<TDVecFont> LoadVecFontFromMemory(const void* data, long size, lo
 // Serialize a font into the .vfn byte layout: `headerSize` reserved (zero) bytes,
 // the 'vfnt' FourCC, then the TDVecFont stream. Inverse of LoadVecFontFromMemory.
 std::vector<std::byte> SaveVecFontToMemory(const TDVecFont& font, long headerSize = 1024);
+
+// Read only the embedded font name from a .vfn buffer, without decoding glyphs.
+// Returns an empty string on failure or when no name is stored (e.g. legacy
+// fonts). Cheap: parses just the header fields up to the name.
+std::string PeekVfnFontName(const void* data, long size, long headerSize = 1024);

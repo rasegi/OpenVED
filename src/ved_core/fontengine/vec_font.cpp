@@ -636,3 +636,22 @@ std::vector<std::byte> SaveVecFontToMemory(const TDVecFont& font, long headerSiz
     font.WriteTo(writer);
     return writer.Buffer();
 }
+
+std::string PeekVfnFontName(const void* data, long size, long headerSize)
+{
+    if (!data || size <= headerSize || headerSize < 0) {
+        return {};
+    }
+
+    const char* bytes = static_cast<const char*>(data);
+    VEDBinaryReader reader(bytes + headerSize, static_cast<std::size_t>(size - headerSize));
+    if (reader.ReadFourCC() != TDVecFont::StreamFourCC()) {
+        return {};
+    }
+    // Mirror the start of TDVecFont::ReadFrom: height, ascent, spacing, then name.
+    reader.ReadDouble();
+    reader.ReadDouble();
+    reader.ReadDouble();
+    std::string name = reader.ReadCString();
+    return reader.Ok() ? name : std::string{};
+}
