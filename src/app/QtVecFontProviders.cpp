@@ -53,15 +53,6 @@ std::string toStdUtf8(const QString& value)
     return {bytes.constData(), static_cast<std::size_t>(bytes.size())};
 }
 
-QString trueTypeNameFromId(const std::string& fontId)
-{
-    constexpr char kPrefix[] = "TT:";
-    if (!fontId.starts_with(kPrefix)) {
-        return {};
-    }
-    return QString::fromUtf8(fontId.substr(3));
-}
-
 bool isRegularStyle(const QString& style)
 {
     return style.compare(QStringLiteral("Regular"), Qt::CaseInsensitive) == 0 ||
@@ -105,9 +96,14 @@ QStringList fontSearchDirectories()
     return result;
 }
 
-QString fontIdForFamily(const QString& family)
+QString systemFontId(const QString& family)
 {
-    return QStringLiteral("TT:%1").arg(family);
+    return QStringLiteral("Sys:") + family;
+}
+
+QString bundleFontId(const QString& family)
+{
+    return QStringLiteral("Ved:") + family;
 }
 
 unsigned int decodeNextUtf8(std::string_view text, std::size_t& pos)
@@ -192,6 +188,7 @@ std::vector<TextRun> splitDirectionalRuns(std::string_view line)
 
 struct VecShapingCache {
     QString fontId;
+    QByteArray fontData;   // kept alive for FT_New_Memory_Face (bundled fonts)
     FT_Library library = nullptr;
     FT_Face face = nullptr;
     hb_font_t* hbFont = nullptr;
@@ -213,7 +210,10 @@ struct VecShapingCache {
     }
 };
 
-TDQtSystemFontProvider::TDQtSystemFontProvider() = default;
+TDQtSystemFontProvider::TDQtSystemFontProvider(bool includeSystemFonts)
+    : includeSystemFonts_(includeSystemFonts)
+{
+}
 TDQtSystemFontProvider::~TDQtSystemFontProvider() = default;
 
 TDBuiltinVfnFontProvider::TDBuiltinVfnFontProvider(QString fontId, QString displayName, QString resourcePath)
@@ -260,52 +260,73 @@ void TDQtSystemFontProvider::EnsureFontIndex() const
     }
 
     QSet<QString> registeredFamilies;
-    const QStringList filters{
-        QStringLiteral("*.ttf"),
-        QStringLiteral("*.ttc"),
-        QStringLiteral("*.otf"),
-        QStringLiteral("*.otc")
-    };
 
-    for (const QString& directory : fontSearchDirectories()) {
-        if (!QDir(directory).exists()) {
+    // Always index the bundled TTF/OTF fonts shipped as Qt resources.
+    const QDir bundleDir(QStringLiteral(":/ved/font"));
+    for (const QString& fileName :
+         bundleDir.entryList({QStringLiteral("*.ttf"), QStringLiteral("*.otf")}, QDir::Files, QDir::Name)) {
+        const QString resourcePath = QStringLiteral(":/ved/font/") + fileName;
+        QFile file(resourcePath);
+        if (!file.open(QIODevice::ReadOnly)) {
             continue;
         }
-        QDirIterator it(directory, filters, QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            const QString path = it.next();
-            const QByteArray fileName = QFile::encodeName(path);
-            FT_Face firstFace = nullptr;
-            if (FT_New_Face(freeType.library, fileName.constData(), 0, &firstFace) != 0 || !firstFace) {
+        const QByteArray data = file.readAll();
+        FT_Face face = nullptr;
+        if (FT_New_Memory_Face(freeType.library,
+                               reinterpret_cast<const FT_Byte*>(data.constData()),
+                               static_cast<FT_Long>(data.size()), 0, &face) != 0 || !face) {
+            continue;
+        }
+        const QString family = QString::fromUtf8(face->family_name ? face->family_name : "");
+        if (isUserVisibleOutlineFace(face, family) && !registeredFamilies.contains(family)) {
+            registeredFamilies.insert(family);
+            fontIndex_.push_back({bundleFontId(family), family, resourcePath, 0, true});
+        }
+        FT_Done_Face(face);
+    }
+
+    // Index installed system fonts only when the switch enabled them.
+    if (includeSystemFonts_) {
+        const QStringList filters{
+            QStringLiteral("*.ttf"),
+            QStringLiteral("*.ttc"),
+            QStringLiteral("*.otf"),
+            QStringLiteral("*.otc")
+        };
+        for (const QString& directory : fontSearchDirectories()) {
+            if (!QDir(directory).exists()) {
                 continue;
             }
-            const long faceCount = std::max<long>(1, firstFace->num_faces);
-            FT_Done_Face(firstFace);
+            QDirIterator it(directory, filters, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString path = it.next();
+                const QByteArray fileName = QFile::encodeName(path);
+                FT_Face firstFace = nullptr;
+                if (FT_New_Face(freeType.library, fileName.constData(), 0, &firstFace) != 0 || !firstFace) {
+                    continue;
+                }
+                const long faceCount = std::max<long>(1, firstFace->num_faces);
+                FT_Done_Face(firstFace);
 
-            for (long faceIndex = 0; faceIndex < faceCount; ++faceIndex) {
-                FT_Face face = nullptr;
-                if (FT_New_Face(freeType.library, fileName.constData(), faceIndex, &face) != 0 || !face) {
-                    continue;
-                }
-                const QString family = QString::fromUtf8(face->family_name ? face->family_name : "");
-                const QString style = QString::fromUtf8(face->style_name ? face->style_name : "");
-                if (!isUserVisibleOutlineFace(face, family) || registeredFamilies.contains(family)) {
+                for (long faceIndex = 0; faceIndex < faceCount; ++faceIndex) {
+                    FT_Face face = nullptr;
+                    if (FT_New_Face(freeType.library, fileName.constData(), faceIndex, &face) != 0 || !face) {
+                        continue;
+                    }
+                    const QString family = QString::fromUtf8(face->family_name ? face->family_name : "");
+                    const QString style = QString::fromUtf8(face->style_name ? face->style_name : "");
+                    if (!isUserVisibleOutlineFace(face, family) || registeredFamilies.contains(family)) {
+                        FT_Done_Face(face);
+                        continue;
+                    }
+                    if (!isRegularStyle(style)) {
+                        FT_Done_Face(face);
+                        continue;
+                    }
+                    registeredFamilies.insert(family);
+                    fontIndex_.push_back({systemFontId(family), family, path, faceIndex, false});
                     FT_Done_Face(face);
-                    continue;
                 }
-                if (!isRegularStyle(style)) {
-                    FT_Done_Face(face);
-                    continue;
-                }
-
-                registeredFamilies.insert(family);
-                fontIndex_.push_back({
-                    fontIdForFamily(family),
-                    family,
-                    path,
-                    faceIndex
-                });
-                FT_Done_Face(face);
             }
         }
     }
@@ -326,7 +347,7 @@ std::vector<TDVecFontDescriptor> TDQtSystemFontProvider::AvailableFonts() const
             toStdUtf8(entry.fontId),
             toStdUtf8(entry.displayName),
             false,
-            true
+            !entry.isResource
         });
     }
     return fonts;
@@ -334,21 +355,27 @@ std::vector<TDVecFontDescriptor> TDQtSystemFontProvider::AvailableFonts() const
 
 std::unique_ptr<TDVecFont> TDQtSystemFontProvider::LoadFont(const std::string& fontId)
 {
-    const QString family = trueTypeNameFromId(fontId);
-    if (family.isEmpty()) {
-        return nullptr;
-    }
-
     EnsureFontIndex();
-    const QString requestedFontId = fontIdForFamily(family);
+    const QString requestedFontId = QString::fromUtf8(fontId.c_str());
     for (const FontEntry& entry : fontIndex_) {
-        if (entry.fontId == requestedFontId) {
-            const QByteArray encodedPath = QFile::encodeName(entry.path);
-            return ved::fontconvert::ConvertTrueTypeFileToVecFont(
-                std::string(encodedPath.constData(), static_cast<std::size_t>(encodedPath.size())),
-                entry.faceIndex,
-                toStdUtf8(fontIdForFamily(entry.displayName)));
+        if (entry.fontId != requestedFontId) {
+            continue;
         }
+        if (entry.isResource) {
+            QFile file(entry.path);
+            if (!file.open(QIODevice::ReadOnly)) {
+                return nullptr;
+            }
+            const QByteArray data = file.readAll();
+            return ved::fontconvert::ConvertTrueTypeMemoryToVecFont(
+                data.constData(), static_cast<long>(data.size()), entry.faceIndex,
+                toStdUtf8(entry.fontId), ved::fontconvert::CharacterCoverage::FullCmap);
+        }
+        const QByteArray encodedPath = QFile::encodeName(entry.path);
+        return ved::fontconvert::ConvertTrueTypeFileToVecFont(
+            std::string(encodedPath.constData(), static_cast<std::size_t>(encodedPath.size())),
+            entry.faceIndex, toStdUtf8(entry.fontId),
+            ved::fontconvert::CharacterCoverage::FullCmap);
     }
     return nullptr;
 }
@@ -359,13 +386,12 @@ bool TDQtSystemFontProvider::ShapeText(const TDVecFont* font, const char* utf8Te
         return false;
     }
 
-    const QString family = trueTypeNameFromId(font->GetFontName());
-    if (family.isEmpty()) {
+    const QString requestedFontId = QString::fromUtf8(font->GetFontName());
+    if (requestedFontId.isEmpty()) {
         return false;
     }
 
     EnsureFontIndex();
-    const QString requestedFontId = fontIdForFamily(family);
     const FontEntry* fontEntry = nullptr;
     for (const FontEntry& entry : fontIndex_) {
         if (entry.fontId == requestedFontId) {
@@ -382,9 +408,23 @@ bool TDQtSystemFontProvider::ShapeText(const TDVecFont* font, const char* utf8Te
         if (FT_Init_FreeType(&cache->library) != 0 || !cache->library) {
             return false;
         }
-        const QByteArray fileName = QFile::encodeName(fontEntry->path);
-        if (FT_New_Face(cache->library, fileName.constData(), fontEntry->faceIndex, &cache->face) != 0 || !cache->face) {
-            return false;
+        if (fontEntry->isResource) {
+            QFile file(fontEntry->path);
+            if (!file.open(QIODevice::ReadOnly)) {
+                return false;
+            }
+            cache->fontData = file.readAll();
+            if (FT_New_Memory_Face(cache->library,
+                                   reinterpret_cast<const FT_Byte*>(cache->fontData.constData()),
+                                   static_cast<FT_Long>(cache->fontData.size()),
+                                   fontEntry->faceIndex, &cache->face) != 0 || !cache->face) {
+                return false;
+            }
+        } else {
+            const QByteArray fileName = QFile::encodeName(fontEntry->path);
+            if (FT_New_Face(cache->library, fileName.constData(), fontEntry->faceIndex, &cache->face) != 0 || !cache->face) {
+                return false;
+            }
         }
         cache->scale = ved::fontconvert::FaceScale(cache->face);
         cache->hbScale = cache->scale / 64.0;

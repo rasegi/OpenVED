@@ -224,22 +224,10 @@ std::unique_ptr<TDVecGlyph> ConvertGlyphOutline(FT_Face face, FT_UInt glyphIndex
     return convertGlyphOutline(face, glyphIndex, scale, ascent);
 }
 
-std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encodedPath,
-                                                        long faceIndex,
-                                                        const std::string& fontName,
-                                                        CharacterCoverage coverage)
+static std::unique_ptr<TDVecFont> convertFaceToVecFont(FT_Face face,
+                                                       const std::string& fontName,
+                                                       CharacterCoverage coverage)
 {
-    FreeTypeLibrary freeType;
-    if (!freeType.library) {
-        return nullptr;
-    }
-
-    FreeTypeFace faceGuard(freeType.library, encodedPath.c_str(), faceIndex);
-    FT_Face face = faceGuard.face;
-    if (!face) {
-        return nullptr;
-    }
-
     const double scale = faceScale(face);
     const double ascent = static_cast<double>(face->ascender);
 
@@ -302,6 +290,45 @@ std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encod
     }
 
     return vecFont;
+}
+
+std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encodedPath,
+                                                        long faceIndex,
+                                                        const std::string& fontName,
+                                                        CharacterCoverage coverage)
+{
+    FreeTypeLibrary freeType;
+    if (!freeType.library) {
+        return nullptr;
+    }
+    FreeTypeFace faceGuard(freeType.library, encodedPath.c_str(), faceIndex);
+    if (!faceGuard.face) {
+        return nullptr;
+    }
+    return convertFaceToVecFont(faceGuard.face, fontName, coverage);
+}
+
+std::unique_ptr<TDVecFont> ConvertTrueTypeMemoryToVecFont(const void* data,
+                                                          long size,
+                                                          long faceIndex,
+                                                          const std::string& fontName,
+                                                          CharacterCoverage coverage)
+{
+    if (!data || size <= 0) {
+        return nullptr;
+    }
+    FreeTypeLibrary freeType;
+    if (!freeType.library) {
+        return nullptr;
+    }
+    FT_Face face = nullptr;
+    if (FT_New_Memory_Face(freeType.library, static_cast<const FT_Byte*>(data),
+                           static_cast<FT_Long>(size), faceIndex, &face) != 0 || !face) {
+        return nullptr;
+    }
+    auto result = convertFaceToVecFont(face, fontName, coverage);
+    FT_Done_Face(face);
+    return result;
 }
 
 } // namespace ved::fontconvert

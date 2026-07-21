@@ -375,6 +375,7 @@ file(GLOB VED_CURSOR_IMAGES CONFIGURE_DEPENDS
 
 file(GLOB VED_FONT_RESOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/font/*.vfn"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/font/*.ttf"
 )
 
 qt_add_executable(ved_qt_app

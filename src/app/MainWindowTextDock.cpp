@@ -241,7 +241,7 @@ void MainWindow::createTextDock() {
 
     textFontCombo_ = new FontComboBox(panel);
     textFontCombo_->addItem(QStringLiteral("WPS Default"));
-    textFontCombo_->setItemData(0, QStringLiteral("VC:WPS Default"), kFontIdRole);
+    textFontCombo_->setItemData(0, QStringLiteral("Ved:WPS Default"), kFontIdRole);
     textFontCombo_->setItemData(0, QStringLiteral("WPS Default"), kFontSearchRole);
     textFontCombo_->setEnabled(true);
 
@@ -619,64 +619,28 @@ bool MainWindow::systemFontsEnabled() const {
 bool MainWindow::rebuildFontProviders() {
     fontManager_ = std::make_unique<TDFontManager>();
     fontProviders_.clear();
+    // Legacy default font: a bundled .vfn without an embedded name.
     fontProviders_.push_back(std::make_unique<TDBuiltinVfnFontProvider>(
-        QStringLiteral("VC:WPS Default"),
+        QStringLiteral("Ved:WPS Default"),
         QStringLiteral("WPS Default"),
         QStringLiteral(":/ved/font/wps_default.vfn")));
 
-    // Auto-register every other bundled .vfn font, using the name embedded in
-    // the file. wps_default is a legacy font without an embedded name, so it
-    // stays explicit above and is skipped here.
-    const QDir bundledFontDir(QStringLiteral(":/ved/font"));
-    const QStringList bundledFonts =
-        bundledFontDir.entryList({QStringLiteral("*.vfn")}, QDir::Files, QDir::Name);
-    for (const QString& fileName : bundledFonts) {
-        if (fileName == QStringLiteral("wps_default.vfn")) {
-            continue;
-        }
-        const QString resourcePath = QStringLiteral(":/ved/font/") + fileName;
-        QFile file(resourcePath);
-        if (!file.open(QIODevice::ReadOnly)) {
-            continue;
-        }
-        const QByteArray data = file.readAll();
-        const std::string embeddedName =
-            PeekVfnFontName(data.constData(), static_cast<long>(data.size()));
-        if (embeddedName.empty()) {
-            continue;
-        }
-        QString fontId = QString::fromUtf8(embeddedName.c_str());
-        QString displayName = fontId;
-        if (displayName.startsWith(QStringLiteral("VC:")) ||
-            displayName.startsWith(QStringLiteral("TT:"))) {
-            displayName = displayName.mid(3);
-        }
-        fontProviders_.push_back(
-            std::make_unique<TDBuiltinVfnFontProvider>(fontId, displayName, resourcePath));
-    }
+    // TrueType provider: bundled TTF (always available) plus installed system
+    // fonts only when the "Convert System Fonts" switch is enabled. It also
+    // shapes text (HarfBuzz) for both bundled and system fonts.
+    auto ttfProvider = std::make_unique<TDQtSystemFontProvider>(systemFontsEnabled());
+    auto* ttfProviderPtr = ttfProvider.get();
+    fontProviders_.push_back(std::move(ttfProvider));
 
-    // System fonts are converted/loaded only when the switch is enabled (never
-    // on WASM). This is what the "Convert System Fonts" menu toggle controls.
-    TDQtSystemFontProvider* systemFontProviderPtr = nullptr;
-    if (systemFontsEnabled()) {
-        auto systemFontProvider = std::make_unique<TDQtSystemFontProvider>();
-        systemFontProviderPtr = systemFontProvider.get();
-        fontProviders_.push_back(std::move(systemFontProvider));
-    }
     for (const std::unique_ptr<IVecFontProvider>& provider : fontProviders_) {
         fontManager_->RegisterProvider(provider.get());
     }
-    if (systemFontProviderPtr) {
-        SetVecTextShaper([systemFontProviderPtr](const TDVecFont* font, const char* text, std::vector<TDVecShapedGlyph>& glyphs) {
-            return systemFontProviderPtr->ShapeText(font, text, glyphs);
-        });
-    } else {
-        SetVecTextShaper([](const TDVecFont*, const char*, std::vector<TDVecShapedGlyph>&) {
-            return false;
-        });
-    }
 
-    if (!fontManager_->SetDefaultFontId("VC:WPS Default")) {
+    SetVecTextShaper([ttfProviderPtr](const TDVecFont* font, const char* text, std::vector<TDVecShapedGlyph>& glyphs) {
+        return ttfProviderPtr->ShapeText(font, text, glyphs);
+    });
+
+    if (!fontManager_->SetDefaultFontId("Ved:WPS Default")) {
         statusBar()->showMessage(QStringLiteral("wps_default.vfn could not be loaded"), 3000);
         return false;
     }
@@ -702,12 +666,12 @@ void MainWindow::populateTextFontCombo(bool force)
     for (const TDVecFontDescriptor& font : fonts) {
         const QString displayName = QString::fromUtf8(font.displayName);
         const QString fontId = QString::fromUtf8(font.fontId);
-        textFontCombo_->addItem(font.isSystemFont ? QStringLiteral("TT: %1").arg(displayName) : displayName);
+        textFontCombo_->addItem(fontId);
         const int index = textFontCombo_->count() - 1;
         textFontCombo_->setItemData(index, fontId, kFontIdRole);
         textFontCombo_->setItemData(index, displayName, kFontSearchRole);
     }
-    const int selectedIndex = textFontCombo_->findData(currentFontId.isEmpty() ? QStringLiteral("VC:WPS Default") : currentFontId, kFontIdRole);
+    const int selectedIndex = textFontCombo_->findData(currentFontId.isEmpty() ? QStringLiteral("Ved:WPS Default") : currentFontId, kFontIdRole);
     textFontCombo_->setCurrentIndex(selectedIndex >= 0 ? selectedIndex : 0);
     textFontCombo_->blockSignals(false);
 }
@@ -718,7 +682,7 @@ const TDVecFont* MainWindow::currentTextVecFont()
         return nullptr;
     }
     populateTextFontCombo();
-    const QString fontId = textFontCombo_ ? textFontCombo_->currentData(kFontIdRole).toString() : QStringLiteral("VC:WPS Default");
+    const QString fontId = textFontCombo_ ? textFontCombo_->currentData(kFontIdRole).toString() : QStringLiteral("Ved:WPS Default");
     const QByteArray fontIdBytes = fontId.toUtf8();
     TDVecFont* font = fontManager_->GetVecFont({fontIdBytes.constData(), static_cast<std::size_t>(fontIdBytes.size())});
     if (!font) {

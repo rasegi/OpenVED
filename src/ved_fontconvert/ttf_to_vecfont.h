@@ -45,4 +45,13 @@ std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encod
                                                         const std::string& fontName,
                                                         CharacterCoverage coverage = CharacterCoverage::Latin1);
 
+// Same as ConvertTrueTypeFileToVecFont but from an in-memory TTF/OTF buffer
+// (e.g. a Qt resource) via FT_New_Memory_Face. The buffer only needs to stay
+// valid for the duration of the call.
+std::unique_ptr<TDVecFont> ConvertTrueTypeMemoryToVecFont(const void* data,
+                                                          long size,
+                                                          long faceIndex,
+                                                          const std::string& fontName,
+                                                          CharacterCoverage coverage = CharacterCoverage::Latin1);
+
 } // namespace ved::fontconvert

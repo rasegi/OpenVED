@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
 #
-# Regenerate the bundled .vfn vector fonts from the third-party TTF/OTF sources
-# using the native ved_font_converter tool.
+# Copy the curated font bundle into the app resources.
 #
-# This produces the *curated* font bundle that is embedded into the app via the
-# .qrc (see src/app/resources/font/). It is intentionally a small, hand-picked
-# set — converting every third-party font would be ~100 MB, far too large to
-# embed (and impossible for the WebAssembly build). A separate on-demand font
-# loading mechanism for WASM/large sets is planned separately.
+# The bundled fonts are shipped as original TTF (not converted VFN) so the app
+# can shape them with HarfBuzz (RTL, contextual forms, ligatures) — essential
+# for Arabic/Persian, Hebrew, etc. Only wps_default stays as a legacy .vfn.
 #
-# The converter runs in FullCmap mode, so non-Latin scripts (Arabic, Hebrew,
-# Greek, Cyrillic) are fully converted, not just Latin-1.
-#
-# Build the converter first:  cmake --build cmake-build-debug
-# then run:                   scripts/regenerate-fonts.sh
-# Override the tool with:     CONVERTER=/path/to/ved_font_converter
+# The TTF are embedded into the app via the .qrc (GLOB *.ttf in CMakeLists.txt)
+# and loaded by the resource font provider at runtime.
 #
 # To add a font to the bundle, add a line to the BUNDLE array:
-#   "<source-path-under-third_party/fonts>|<output.vfn>|<VC:Font Name>"
+#   "<source-path-under-third_party/fonts>|<output-name.ttf>"
 
 set -euo pipefail
 
@@ -30,45 +23,39 @@ OUT_DIR="$PROJECT_ROOT/src/app/resources/font"
 # Covers: Latin (metric-compatible Arial/Times/Courier replacements), Greek +
 # Cyrillic, Hebrew, and Arabic/Persian.
 BUNDLE=(
-    "liberation/LiberationSans-Regular.ttf|liberation_sans.vfn|VC:Liberation Sans"
-    "liberation/LiberationSerif-Regular.ttf|liberation_serif.vfn|VC:Liberation Serif"
-    "liberation/LiberationMono-Regular.ttf|liberation_mono.vfn|VC:Liberation Mono"
-    "noto/NotoSans-Regular.ttf|noto_sans.vfn|VC:Noto Sans"
-    "noto/NotoSansHebrew-Regular.ttf|noto_sans_hebrew.vfn|VC:Noto Sans Hebrew"
-    "amiri/Amiri-Regular.ttf|amiri.vfn|VC:Amiri"
+    "liberation/LiberationSans-Regular.ttf|liberation_sans.ttf"
+    "liberation/LiberationSerif-Regular.ttf|liberation_serif.ttf"
+    "liberation/LiberationMono-Regular.ttf|liberation_mono.ttf"
+    "noto/NotoSans-Regular.ttf|noto_sans.ttf"
+    "noto/NotoSansHebrew-Regular.ttf|noto_sans_hebrew.ttf"
+    "amiri/Amiri-Regular.ttf|amiri.ttf"
 )
 # --------------------------------------------------------------------------
 
-# Locate the converter (env override wins).
-CONVERTER="${CONVERTER:-}"
-if [ -z "$CONVERTER" ]; then
-    for cand in \
-        "$PROJECT_ROOT/cmake-build-debug/ved_font_converter" \
-        "$PROJECT_ROOT/build/release/ved_font_converter" \
-        "$PROJECT_ROOT/build/ved_font_converter"; do
-        if [ -x "$cand" ]; then CONVERTER="$cand"; break; fi
-    done
-fi
-if [ -z "$CONVERTER" ] || [ ! -x "$CONVERTER" ]; then
-    echo "error: ved_font_converter not found." >&2
-    echo "       build it (cmake --build cmake-build-debug) or set CONVERTER=..." >&2
-    exit 1
-fi
-
 mkdir -p "$OUT_DIR"
+
+# Drop any previously generated bundle .vfn (keep only the legacy wps_default).
+shopt -s nullglob
+for vfn in "$OUT_DIR"/*.vfn; do
+    if [ "$(basename "$vfn")" != "wps_default.vfn" ]; then
+        rm -f "$vfn"
+        echo "removed old vfn: $(basename "$vfn")"
+    fi
+done
 
 count=0
 for entry in "${BUNDLE[@]}"; do
-    IFS='|' read -r rel out name <<< "$entry"
+    IFS='|' read -r rel out <<< "$entry"
     src="$SRC_DIR/$rel"
     if [ ! -f "$src" ]; then
         echo "error: source font not found: $src" >&2
         exit 1
     fi
-    "$CONVERTER" --in "$src" --out "$OUT_DIR/$out" --name "$name"
+    cp "$src" "$OUT_DIR/$out"
+    echo "copied: $rel -> $out"
     count=$((count + 1))
 done
 
 echo ""
-echo "done: $count fonts -> $OUT_DIR"
-du -ch "$OUT_DIR"/*.vfn | tail -1 | sed 's/total/bundle total/'
+echo "done: $count TTF fonts -> $OUT_DIR"
+du -ch "$OUT_DIR"/*.ttf "$OUT_DIR"/*.vfn 2>/dev/null | tail -1 | sed 's/total/bundle total/'

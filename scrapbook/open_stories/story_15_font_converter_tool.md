@@ -272,6 +272,10 @@ Alle 42 Quell-Fonts als `.vfn` waeren ~101 MB (untragbar fuers Binary, unmoeglic
 fuer WASM) — daher bewusst klein gehalten. Ein separater On-demand-Lade-
 Mechanismus (v.a. fuer WASM) ist spaeter geplant.
 
+> **Ueberholt durch Step 6:** Das Bundle wird nicht mehr als `.vfn` ausgeliefert,
+> sondern als **TTF** (kleiner + shapebar). Die hier beschriebene VFN-Erzeugung/
+> -Registrierung ist damit historisch; aktueller Stand siehe Step 6.
+
 **Log:**
 Umgesetzt am 2026-07-21.
 - `scripts/regenerate-fonts.sh` erzeugt aus einer expliziten `BUNDLE`-Liste die
@@ -326,6 +330,59 @@ wurden sie immer geladen; Grund fuer den Switch ist, dass Scan/Convert teuer ist
 Umgesetzt am 2026-07-21. Geaendert: `MainWindow.{h,cpp}`,
 `MainWindowTextDock.cpp`. WASM-Verhalten zusaetzlich in `story_16` ergaenzt.
 
+### Step 6: Bugfix — gebuendelte Fonts als TTF + Shaping (Arabisch/RTL)
+
+**Bug:** Persischer/arabischer Text mit dem gebuendelten `Amiri`-Font wurde
+falsch gerendert — isolierte Buchstabenformen, keine Verbindungen/Ligaturen und
+falsche Richtung (LTR statt RTL). Beleg: `Error-Images/Fehler_bei_Amiri_Font.jpg`.
+
+**Ursache (zweifach):**
+1. Der HarfBuzz-Shaper lief nur fuer System-Fonts, nicht fuer die gebuendelten
+   `.vfn`-Fonts.
+2. **Grundsaetzlich:** Das VFN-Format speichert nur Unicode→Glyph-Outline, aber
+   **keine OpenType-Shaping-Tabellen** (`GSUB`/`GPOS`). Arabisches/persisches
+   Shaping ist mit `.vfn` daher prinzipiell unmoeglich — HarfBuzz braucht die
+   originale TTF.
+
+**Loesung:** Gebuendelte Fonts werden als **originale TTF** ausgeliefert (nicht
+mehr VFN) und ueber HarfBuzz geshapt. Die TTF sind zudem kleiner als die VFN
+(z.B. Amiri 588 KB vs. 3,5 MB).
+
+**Umsetzung (Teile 1–5):**
+- Konverter: `ConvertTrueTypeMemoryToVecFont` (TTF aus Qt-Ressourcen via
+  `FT_New_Memory_Face`), geteilter Kern `convertFaceToVecFont`. Der VFN-Konverter
+  + CLI bleiben erhalten (fuer `wps_default`/Spezialfaelle), werden aber fuer das
+  Bundle nicht mehr genutzt.
+- `scripts/regenerate-fonts.sh` kopiert jetzt die kuratierten Bundle-**TTF** nach
+  `src/app/resources/font/` und entfernt die alten Bundle-`.vfn`
+  (`wps_default.vfn` bleibt).
+- `TDQtSystemFontProvider`: indexiert **immer** die gebuendelten TTF (Ressourcen,
+  Memory-Face) und **nur bei aktivem Switch** die installierten System-Fonts;
+  `LoadFont`/`ShapeText` bedienen beide Quellen (Memory- vs. Pfad-Face). Der
+  Provider wird immer registriert; der Switch steuert nur den System-Anteil.
+- `.qrc` bettet `*.ttf` mit ein.
+
+**Namenskonvention (neu):**
+- Gebuendelte Ressourcen-Fonts (TTF **und** `wps_default.vfn`): Praefix **`Ved:`**
+  (z.B. `Ved:Amiri`, `Ved:WPS Default`).
+- Installierte System-Fonts: Praefix **`Sys:`** (loest das alte `TT:` ab).
+- Die Font-Auswahl zeigt die volle ID mit Praefix.
+- **Kein Rueckwaerts-Kompat:** alte Dokumente mit `VC:`/`TT:`-Referenzen fallen
+  auf den Default zurueck (Grundsatz „keine Rueckwaertskompatibilitaet").
+
+**Tests:**
+- [x] Build gruen, `ctest` 27/27, App startet stabil (Bundle-TTF immer im Index,
+      Shaper aktiv). _(2026-07-21)_
+- [ ] `Ved:Amiri` rendert persisch/arabisch **verbunden und RTL** (visuelle
+      Abnahme durch User).
+- [ ] Switch an -> zusaetzlich `Sys:`-Fonts, ebenfalls geshapt.
+
+**Log:**
+Umgesetzt am 2026-07-21. Geaendert: `ttf_to_vecfont.{h,cpp}`,
+`QtVecFontProviders.{h,cpp}`, `MainWindowTextDock.cpp`,
+`scripts/regenerate-fonts.sh`, `CMakeLists.txt` (qrc `*.ttf`). Bundle-Fonts von
+`.vfn` auf `.ttf` umgestellt (alte `.vfn` entfernt, TTF hinzugefuegt).
+
 ## Akzeptanzkriterien
 
 - Natives CLI `ved_font_converter` erzeugt aus TTF/OTF eine `.vfn`, die
@@ -333,8 +390,11 @@ Umgesetzt am 2026-07-21. Geaendert: `MainWindow.{h,cpp}`,
 - Die Konvertierungslogik ist aus `MainWindow`/App entkoppelt und wird von
   Provider **und** CLI geteilt; `ved_core` bleibt Qt-frei.
 - Das Tool ist hinter `if(NOT EMSCRIPTEN)` gegated (nicht im WASM-Build).
-- Ein Basis-Set frei lizenzierter `.vfn`-Fonts (Liberation-Familie) liegt
-  konvertiert + lizenzdokumentiert vor.
+- Ein Basis-Set frei lizenzierter Fonts (Liberation/Noto/Amiri) ist gebuendelt
+  und lizenzdokumentiert. **Ab Step 6 als TTF** (statt VFN), damit HarfBuzz
+  komplexe Schriften (Arabisch/Persisch, Hebraeisch) korrekt shapt.
+- Gebuendelte Fonts (`Ved:`) sind immer verfuegbar; System-Fonts (`Sys:`) nur bei
+  aktivem "Convert System Fonts"-Switch — beide werden geshapt.
 
 ## Reihenfolge
 
@@ -343,6 +403,8 @@ Umgesetzt am 2026-07-21. Geaendert: `MainWindow.{h,cpp}`,
 3. Step 3 — CLI-Frontend.
 4. Step 4 — Bundle-Fonts konvertieren + Lizenzen + Auto-Registrierung.
 5. Step 5 — Menue-Switch "Convert System Fonts" (persistiert, WASM-aware).
+6. Step 6 — Bugfix: gebuendelte Fonts als TTF + HarfBuzz-Shaping (Arabisch/RTL);
+   Praefixe `Ved:`/`Sys:`.
 
 ## Bezug zu anderen Stories
 
