@@ -343,6 +343,23 @@ set_target_properties(ved_fontconvert PROPERTIES
     AUTORCC OFF
 )
 
+# Native build-time CLI: TTF/OTF -> .vfn. Qt-free (FreeType + core only),
+# excluded from the WebAssembly build.
+if(NOT EMSCRIPTEN)
+    add_executable(ved_font_converter
+        src/tools/ved_font_converter/main.cpp
+    )
+    target_link_libraries(ved_font_converter
+        PRIVATE
+            ved_fontconvert
+    )
+    set_target_properties(ved_font_converter PROPERTIES
+        AUTOMOC OFF
+        AUTOUIC OFF
+        AUTORCC OFF
+    )
+endif()
+
 file(GLOB VED_TOOLBAR_ICONS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/toolbar/*.bmp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/toolbar/*.png"
@@ -520,6 +537,12 @@ add_executable(ved_core_vfn_save_roundtrip_tests
     tests/ved_core_vfn_save_roundtrip_tests.cpp
 )
 
+if(NOT EMSCRIPTEN)
+    add_executable(ved_fontconvert_pipeline_tests
+        tests/ved_fontconvert_pipeline_tests.cpp
+    )
+endif()
+
 add_executable(ved_core_text_tests
     tests/ved_core_text_tests.cpp
 )
@@ -644,6 +667,13 @@ target_link_libraries(ved_core_vfn_save_roundtrip_tests
         ved_core
 )
 
+if(NOT EMSCRIPTEN)
+    target_link_libraries(ved_fontconvert_pipeline_tests
+        PRIVATE
+            ved_fontconvert
+    )
+endif()
+
 target_link_libraries(ved_core_text_tests
     PRIVATE
         ved_core
@@ -695,6 +725,9 @@ add_test(NAME ved_core_serialization_tests COMMAND ved_core_serialization_tests)
 add_test(NAME ved_core_model_io_tests COMMAND ved_core_model_io_tests)
 add_test(NAME ved_core_vec_font_tests COMMAND ved_core_vec_font_tests)
 add_test(NAME ved_core_vfn_save_roundtrip_tests COMMAND ved_core_vfn_save_roundtrip_tests)
+if(NOT EMSCRIPTEN)
+    add_test(NAME ved_fontconvert_pipeline_tests COMMAND ved_fontconvert_pipeline_tests)
+endif()
 add_test(NAME ved_core_text_tests COMMAND ved_core_text_tests)
 add_test(NAME ved_core_document_settings_tests COMMAND ved_core_document_settings_tests)
 add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)

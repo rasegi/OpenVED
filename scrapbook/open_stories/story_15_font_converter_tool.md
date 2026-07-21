@@ -153,12 +153,37 @@ Umgesetzt am 2026-07-21.
 - Exit-Codes + verstaendliche Meldungen fuer Skript-Nutzung (Build/CI).
 
 **Tests:**
-- [ ] `ved_font_converter --in dejavu.ttf --out dejavu.vfn ...` erzeugt eine
-      Datei, die `LoadVecFontFromMemory` fehlerfrei liest.
-- [ ] Konvertierte `.vfn` in der App als Builtin geladen zeigt korrekten Text.
-- [ ] Fehlerfaelle liefern != 0 Exit-Code + Meldung.
+- [x] CLI erzeugt aus echter TTF/OTF eine `.vfn`, die `LoadVecFontFromMemory`
+      fehlerfrei liest — automatisiert via `ved_fontconvert_pipeline_tests`
+      (TTF -> Convert -> Save -> Load) + Format-Verifikation (`'vfnt'` bei
+      Offset 1024). _(2026-07-21)_
+- [ ] Konvertierte `.vfn` in der App als Builtin geladen zeigt korrekten Text
+      (App-Integration = Step 4 / Story 16 Step 4c).
+- [x] Fehlerfaelle liefern != 0 Exit-Code + Meldung (fehlende Datei -> 1,
+      Argument-Fehler -> 2). _(2026-07-21)_
 
-**Log:** _(nach Umsetzung ausfuellen)_
+**Abweichung vom Story-Entwurf:** Flags sind `--in/--out/--name/--face/--header`
+(statt `--id/--style`). Der Font-Name wird als ein Parameter `--name` uebergeben
+(z.B. `"VC:Liberation Sans"`); ein separates `--style` entfaellt, da der Name
+alles Noetige traegt. `--header` erlaubt eine abweichende Headergroesse.
+
+**Log:**
+Umgesetzt am 2026-07-21.
+- Neues **Qt-freies** CLI `src/tools/ved_font_converter/main.cpp`, Target
+  `ved_font_converter` (linkt nur `ved_fontconvert` -> transitiv `ved_core` +
+  FreeType), in CMake hinter `if(NOT EMSCRIPTEN)` (nicht im WASM-Build).
+- Verbindet die Bausteine aus Step 1 + 2:
+  `ved::fontconvert::ConvertTrueTypeFileToVecFont` -> `SaveVecFontToMemory` ->
+  `std::ofstream` (der in Step 2 angekuendigte duenne fstream-Wrapper).
+- Argument-Parsing manuell (keine externe Lib); Exit-Codes 0 (ok), 1
+  (Konvertierungs-/IO-Fehler), 2 (Usage-Fehler); `--help`/`-h`.
+- Verifikation: Build gruen; CLI real getestet auf
+  `LiberationSans-Regular.ttf` (224 Zeichen) und `Amiri-Regular.ttf` (arabisch);
+  erzeugte `.vfn` byte-verifiziert (1024er Null-Header + `'vfnt'`);
+  Fehlerfaelle (fehlende Datei, fehlende Args) mit korrekten Exit-Codes.
+- Neues Test-Target `ved_fontconvert_pipeline_tests` (linkt `ved_fontconvert`,
+  konvertiert eine echte `third_party/fonts`-TTF und prueft den Save/Load-
+  Round-Trip). `ctest` **27/27** gruen.
 
 ### Step 4: Font-Auswahl fuer das Basis-Bundle
 
