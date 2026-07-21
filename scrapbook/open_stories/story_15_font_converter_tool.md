@@ -121,34 +121,66 @@ ved_font_converter --in <font.ttf> --out <font.vfn> \
 
 ### Step 4: Font-Auswahl fuer das Basis-Bundle
 
-Freie, redistribuierbare, metrik-kompatible Fonts (Ersatz fuer die MS-Kernschriften):
+Freie, redistribuierbare Fonts — metrik-kompatibler Ersatz fuer die
+MS-Kernschriften plus breite Unicode-/Arabic-Abdeckung:
 
-| Zweck | Font | Lizenz | Ersetzt |
+| Zweck | Font | Lizenz | Ersetzt / Zweck |
 |---|---|---|---|
-| Sans | Liberation Sans (Regular/Bold) | OFL/Apache | Arial |
-| Serif | Liberation Serif (Regular) | OFL/Apache | Times New Roman |
-| Mono | Liberation Mono (Regular) | OFL/Apache | Courier New |
-| Unicode-Breite (optional) | DejaVu Sans | Bitstream Vera / public | — |
+| Sans | Liberation Sans (Regular/Bold) | OFL 1.1 | Arial |
+| Serif | Liberation Serif (Regular) | OFL 1.1 | Times New Roman |
+| Mono | Liberation Mono (Regular) | OFL 1.1 | Courier New |
+| Unicode-Breite | DejaVu Sans/Serif/Mono | Bitstream Vera / public | breite Latin/Symbol-Abdeckung |
+| Arabic/Naskh | Amiri (Regular/Bold/Italic) | OFL 1.1 | arabischer/persischer RTL-Text |
 
 Hinweis: **Arial und Courier New selbst sind proprietaer** (Monotype) und
 duerfen nicht gebuendelt/konvertiert werden — daher die Liberation-Familie.
+Hinweis Amiri: `AmiriQuran*`-Varianten (u.a. `AmiriQuranColored` als COLR/CPAL-
+Farbfont) sind fuer die VFN-Outline-Konvertierung ungeeignet und werden **nicht**
+konvertiert; sie liegen nur zur Vollstaendigkeit in `third_party/fonts/amiri/`.
 
-**Font-Bezug:** Die Liberation-/DejaVu-TTFs sind auf macOS **nicht systemweit
-installiert** — sie liegen nur app-intern (z.B. im LibreOffice-Bundle unter
-`/Applications/LibreOffice.app/Contents/Resources/fonts/truetype/`). Deshalb
-werden sie **offiziell frisch bezogen** (definierte Version + originaler
-Lizenztext), nicht aus fremden App-Bundles kopiert:
-- Liberation: https://github.com/liberationfonts/liberation-fonts
-- DejaVu: https://dejavu-fonts.github.io
+**Font-Bezug (Ist-Zustand, bereits im Repo):** gnu.org lieferte nur die
+LGPL/GPL-Rechtstexte, **nicht** die Fonts.
+
+| Font | Quelle | Version | Bemerkung |
+|---|---|---|---|
+| DejaVu (Sans/Serif/Mono) | github.com/dejavu-fonts/dejavu-fonts (Release-Archiv) | 2.37 | offizielle fertige TTF |
+| Liberation (Sans/Serif/Mono) | lokale LibreOffice-Installation (26.2.4.2) | 2.1.5 | siehe unten |
+| Amiri (Regular/Bold/Italic + Quran) | github.com/aliftype/amiri (main, `fonts/`) | ~1.003 | offizielle fertige TTF, Arabic |
+
+Hinweis Liberation: Es gibt **keine offiziellen fertigen Liberation-TTF zum
+Download** — die GitHub-Releases enthalten nur `.sfd`-Quellen, und `fontforge`
+zum Selbstbauen war nicht verfuegbar. Daher wurden die TTF aus dem
+LibreOffice-Bundle (`/Applications/LibreOffice.app/Contents/Resources/fonts/
+truetype/`) kopiert. Die dort mitgelieferte Version ist laut Font-Metadaten
+**Liberation 2.1.5 — identisch zur offiziellen Upstream-Version** und
+unmodifiziert, die Lizenzlage (OFL 1.1) ist damit sauber.
+
+**Ablage im Repo (beide Artefakte committet):**
+```
+third_party/fonts/liberation/   Liberation*.ttf   (v2.1.5, aus LibreOffice, 16 Dateien)
+third_party/fonts/dejavu/        DejaVu*.ttf       (v2.37, offiziell, 6 Dateien)
+third_party/fonts/amiri/         Amiri*.ttf        (~v1.003, offiziell, 6 Dateien)
+src/app/resources/font/          *.vfn             (konvertiert, Qt-Ressource)
+```
+Grund fuers Committen der `.vfn`: `ved_font_converter` ist ein **natives** Tool
+und laeuft beim WASM-Cross-Build nicht — die `.vfn` koennen dort nicht
+build-zeitlich erzeugt werden und muessen fertig im Repo liegen. Die TTF-Quellen
+werden mitcommittet, damit die `.vfn` jederzeit reproduzierbar neu erzeugbar sind.
 
 **Was:**
-- Fonts von der offiziellen Quelle beziehen, mit dem CLI nach `.vfn` konvertieren.
-- Lizenztexte gehoeren in die zentrale `licenses/` (Repo-Root) und werden in
-  `THIRD_PARTY_LICENSES.md` gefuehrt — nicht in einer separaten Font-Datei.
-  Die OFL-1.1 (`licenses/Liberation-OFL-1.1.txt`) ist bereits eingebunden.
+- Quell-TTF liegen bereits in `third_party/fonts/` (Liberation 2.1.5, DejaVu
+  2.37) — umgesetzt am 2026-07-21, committet.
+- Mit `ved_font_converter` einmalig nach `.vfn` konvertieren, Ergebnis nach
+  `src/app/resources/font/` (committet), `.qrc` ergaenzen.
+- `scripts/regenerate-fonts.sh` mit den konkreten Konverter-Aufrufen ablegen,
+  damit die Erzeugung dokumentiert und wiederholbar ist.
+- Lizenztexte in der zentralen `licenses/` fuehren (`THIRD_PARTY_LICENSES.md`);
+  OFL-1.1 und DejaVu-Lizenz sind bereits eingebunden.
 
 **Tests:**
-- [ ] Fuer jeden Bundle-Font existiert eine ladbare `.vfn`.
+- [x] Quell-TTFs liegen versioniert in `third_party/fonts/`. _(2026-07-21)_
+- [ ] Fuer jeden Bundle-Font existiert eine ladbare `.vfn` in `src/app/resources/font/`.
+- [ ] `scripts/regenerate-fonts.sh` erzeugt die `.vfn` reproduzierbar aus den Quellen.
 - [ ] Lizenztexte liegen vollstaendig in `licenses/` und sind in
       `THIRD_PARTY_LICENSES.md` referenziert.
 

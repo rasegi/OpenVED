@@ -52,15 +52,32 @@ core fonts (Arial → Liberation Sans, Times New Roman → Liberation Serif,
 Courier New → Liberation Mono).
 
 - **License:** SIL Open Font License 1.1 — see `licenses/Liberation-OFL-1.1.txt`.
-- **Source:** https://github.com/liberationfonts/liberation-fonts (official
-  upstream — used instead of any copy bundled inside other applications).
+- **Version:** 2.1.5 (`third_party/fonts/liberation/`).
+- **Source:** Upstream project is
+  https://github.com/liberationfonts/liberation-fonts, which publishes only
+  `.sfd` sources (no prebuilt TTF downloads). The bundled TTF were copied from a
+  local LibreOffice installation, which ships the **unmodified** Liberation
+  2.1.5 fonts; their metadata confirms they match the upstream release. The OFL
+  permits this redistribution.
 - **Reserved Font Names:** as stated in the OFL notice.
 
 ## Bundled fonts — DejaVu (optional, wider Unicode coverage)
 
 - **License:** Bitstream Vera License + public-domain additions —
   see `licenses/DejaVu-LICENSE.txt`.
-- **Source:** https://dejavu-fonts.github.io
+- **Version:** 2.37 (`third_party/fonts/dejavu/`).
+- **Source:** https://dejavu-fonts.github.io / github.com/dejavu-fonts/dejavu-fonts.
+
+## Bundled fonts — Amiri (Arabic / Naskh)
+
+Arabic/Persian RTL text coverage.
+
+- **License:** SIL Open Font License 1.1 — see `licenses/Amiri-OFL-1.1.txt`.
+- **Version:** ~1.003 (`third_party/fonts/amiri/`).
+- **Source:** https://github.com/aliftype/amiri (main branch, `fonts/`).
+- **Note:** The `AmiriQuran*` variants (incl. `AmiriQuranColored`, a COLR/CPAL
+  color font) are unsuitable for monochrome outline conversion to `.vfn` and are
+  kept for completeness only — they are not converted.
 
 ---
 
