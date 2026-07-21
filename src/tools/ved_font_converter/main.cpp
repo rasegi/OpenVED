@@ -90,7 +90,8 @@ int main(int argc, char** argv)
     }
 
     std::unique_ptr<TDVecFont> font =
-        ved::fontconvert::ConvertTrueTypeFileToVecFont(inPath, faceIndex, name);
+        ved::fontconvert::ConvertTrueTypeFileToVecFont(
+            inPath, faceIndex, name, ved::fontconvert::CharacterCoverage::FullCmap);
     if (!font) {
         std::cerr << "error: failed to load or convert '" << inPath
                   << "' (face " << faceIndex << ")\n";

@@ -226,7 +226,8 @@ std::unique_ptr<TDVecGlyph> ConvertGlyphOutline(FT_Face face, FT_UInt glyphIndex
 
 std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encodedPath,
                                                         long faceIndex,
-                                                        const std::string& fontName)
+                                                        const std::string& fontName,
+                                                        CharacterCoverage coverage)
 {
     FreeTypeLibrary freeType;
     if (!freeType.library) {
@@ -257,11 +258,12 @@ std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encod
         0
     };
 
-    for (int character = kFirstConvertedCharacter; character <= kLastConvertedCharacter; ++character) {
+    // Emit one TDVecCharacter for a code point: convert its outline, or mark it
+    // as a spacing glyph when the font provides no outline for it.
+    const auto appendCharacter = [&](unsigned int codePoint, FT_UInt glyphIndex) {
         auto* vecCharacter = new TDVecCharacter();
-        vecCharacter->SetUnicodeValue(static_cast<unsigned short>(character));
+        vecCharacter->SetUnicodeValue(static_cast<unsigned short>(codePoint));
 
-        const FT_UInt glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(character));
         if (glyphIndex != 0 &&
             FT_Load_Glyph(face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING | FT_LOAD_NO_SCALE) == 0) {
             vecCharacter->SetCharWidth(static_cast<double>(face->glyph->advance.x) * scale);
@@ -279,6 +281,24 @@ std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encod
 
         vecCharacter->SetBaseLine(vecFont->GetAscent());
         vecFont->AppendVecCharacter(vecCharacter);
+    };
+
+    if (coverage == CharacterCoverage::FullCmap) {
+        // Walk every code point the font's cmap maps, limited to the BMP because
+        // TDVecCharacter stores the Unicode value in 16 bits.
+        FT_UInt glyphIndex = 0;
+        for (FT_ULong codePoint = FT_Get_First_Char(face, &glyphIndex);
+             glyphIndex != 0;
+             codePoint = FT_Get_Next_Char(face, codePoint, &glyphIndex)) {
+            if (codePoint >= static_cast<FT_ULong>(kFirstConvertedCharacter) && codePoint <= 0xFFFF) {
+                appendCharacter(static_cast<unsigned int>(codePoint), glyphIndex);
+            }
+        }
+    } else {
+        for (int character = kFirstConvertedCharacter; character <= kLastConvertedCharacter; ++character) {
+            appendCharacter(static_cast<unsigned int>(character),
+                            FT_Get_Char_Index(face, static_cast<FT_ULong>(character)));
+        }
     }
 
     return vecFont;

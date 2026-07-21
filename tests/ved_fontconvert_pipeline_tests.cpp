@@ -48,5 +48,23 @@ int main()
     assert(space);
     assert(space->IsSpacing());
 
+    // Latin-1 coverage (the default) emits exactly the 32..255 range.
+    assert(font->CountVecCharacters() == 224);
+
+    // FullCmap coverage picks up non-Latin scripts. Amiri (Arabic) must then
+    // carry far more characters and provide a real outline for an Arabic letter.
+    std::unique_ptr<TDVecFont> arabic =
+        ved::fontconvert::ConvertTrueTypeFileToVecFont(
+            "../third_party/fonts/amiri/Amiri-Regular.ttf", 0, "VC:Amiri",
+            ved::fontconvert::CharacterCoverage::FullCmap);
+    assert(arabic);
+    assert(arabic->CountVecCharacters() > 224);
+    const TDVecGlyph* alef = arabic->GetGlyphFromCharacter(0x0627); // ARABIC LETTER ALEF
+    assert(alef);
+    assert(alef->CountPolyCurves() > 0);
+
+    // The Latin part is still present in FullCmap mode.
+    assert(arabic->GetGlyphFromCharacter('A'));
+
     return 0;
 }

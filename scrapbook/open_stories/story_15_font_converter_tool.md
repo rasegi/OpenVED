@@ -250,10 +250,45 @@ werden mitcommittet, damit die `.vfn` jederzeit reproduzierbar neu erzeugbar sin
 
 **Tests:**
 - [x] Quell-TTFs liegen versioniert in `third_party/fonts/`. _(2026-07-21)_
-- [ ] Fuer jeden Bundle-Font existiert eine ladbare `.vfn` in `src/app/resources/font/`.
-- [ ] `scripts/regenerate-fonts.sh` erzeugt die `.vfn` reproduzierbar aus den Quellen.
-- [ ] Lizenztexte liegen vollstaendig in `licenses/` und sind in
-      `THIRD_PARTY_LICENSES.md` referenziert.
+- [x] Fuer jeden Bundle-Font existiert eine ladbare `.vfn` in
+      `src/app/resources/font/`; App baut + startet mit dem Bundle. _(2026-07-21)_
+- [x] `scripts/regenerate-fonts.sh` erzeugt die `.vfn` reproduzierbar. _(2026-07-21)_
+- [x] Lizenztexte liegen vollstaendig in `licenses/` und sind in
+      `THIRD_PARTY_LICENSES.md` referenziert. _(2026-07-21)_
+
+**Konverter-Erweiterung (FullCmap):** Der Konverter deckte urspruenglich nur
+U+0020..U+00FF (Latin-1) ab — unzureichend fuer die Zielskripte
+(Arabisch 0x600+, Hebraeisch 0x590+, Griechisch/Kyrillisch 0x370+/0x400+).
+`ConvertTrueTypeFileToVecFont` bekam daher einen Parameter
+`CharacterCoverage {Latin1, FullCmap}` (Default `Latin1`, damit der Qt-System-
+Font-Provider **unveraendert** bleibt). `FullCmap` iteriert per
+`FT_Get_First_Char`/`FT_Get_Next_Char` alle cmap-Codepoints bis U+FFFF (BMP;
+`TDVecCharacter::UnicodeValue` ist 16-bit). Das CLI nutzt `FullCmap`. Belegt
+durch `ved_fontconvert_pipeline_tests` (Latin-1 = 224 Zeichen; Amiri/FullCmap
+enthaelt U+0627 ARABIC ALEF mit echtem Outline).
+
+**Bundle-Strategie:** kuratierte Auswahl (Regular only), ins Binary via `.qrc`.
+Alle 42 Quell-Fonts als `.vfn` waeren ~101 MB (untragbar fuers Binary, unmoeglich
+fuer WASM) — daher bewusst klein gehalten. Ein separater On-demand-Lade-
+Mechanismus (v.a. fuer WASM) ist spaeter geplant.
+
+**Log:**
+Umgesetzt am 2026-07-21.
+- `scripts/regenerate-fonts.sh` erzeugt aus einer expliziten `BUNDLE`-Liste die
+  kuratierten `.vfn` (neue Fonts = eine Zeile mehr). Konverter wird
+  automatisch gefunden; laeuft im `FullCmap`-Modus.
+- Erzeugtes Bundle in `src/app/resources/font/` (Regular only):
+  `liberation_sans` (2327 Zeichen), `liberation_serif` (2321),
+  `liberation_mono` (2305), `noto_sans` (2838, Greek/Cyrillic),
+  `noto_sans_hebrew` (143), `amiri` (1556, Arabisch) — zusammen ~13 MB;
+  `wps_default.vfn` bleibt.
+- Abdeckung: Latin (Arial/Times/Courier-Ersatz), Griechisch, Kyrillisch,
+  Hebraeisch, Arabisch/Persisch.
+- App gebaut: Binary 3,1 MB -> **4,2 MB** (Qt-`rcc` komprimiert die Vektordaten
+  ~13 MB -> ~1 MB). Headless-Smoke-Test 5 s stabil.
+- **Offen (Story 16 Step 4c):** die Fonts sind im Binary, werden aber noch nicht
+  im `TDBuiltinVfnFontProvider` registriert -> erscheinen noch nicht in der
+  Font-Auswahl der App.
 
 **Log:** _(nach Umsetzung ausfuellen)_
 
