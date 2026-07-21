@@ -367,7 +367,26 @@ Urspruenglicher Entwurf (mit `qtbase` — verworfen, s.o.):
 
 ## Step 3: GitHub Actions Workflow
 
-**Neue Datei: `.github/workflows/release.yml`**
+**Neue Datei: `.github/workflows/release.yml`** — **umgesetzt am 2026-07-22**
+(YAML validiert; **CI-Lauf ausstehend** — nur auf GitHub testbar):
+- 3 Jobs: `build-macos` (macos-14), `build-windows` (windows-latest),
+  `release` (ubuntu, `needs` beide, nur bei Tag `v*`).
+- **Strategie: CI ruft die getesteten lokalen Skripte auf** (statt Build-Logik
+  zu duplizieren):
+  - macOS: `brew install qt freetype harfbuzz ninja` → `scripts/build-macos.sh`
+    (Homebrew-Fixup laeuft mit — identisch zum lokalen Build).
+  - Windows: `install-qt-action` (offizielles Qt) + `vcpkg install freetype
+    harfbuzz --triplet x64-windows-static` (classic-mode, **im vcpkg-Root**
+    ausgefuehrt, damit `vcpkg.json` nicht den Manifest-Mode ausloest) →
+    `scripts/build-windows.ps1` mit `-QtDir $QT_ROOT_DIR`,
+    `-VcpkgRoot $VCPKG_INSTALLATION_ROOT`, `-VsRoot` (via `vswhere`),
+    `-Triplet x64-windows-static`.
+- Trigger: Tag-Push `v*` (→ Release) **und** `workflow_dispatch` (Testlauf, nur
+  Artefakte, kein Release — `release`-Job hat `if: startsWith(...refs/tags/v)`).
+- Pre-Release automatisch bei Tags mit Bindestrich (`v0.2.0-beta.1`).
+- **Hinweis:** Erster CI-Lauf braucht erfahrungsgemaess ein paar Runden
+  (VS-Pfad, Qt-arch-String, vcpkg/WiX in der CI-Umgebung) — normale Anlauf-
+  Reibung, kein Homebrew-Kaninchenbau.
 
 Trigger: Tag-Push `v*` (z.B. `v0.1.0`)
 
