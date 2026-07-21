@@ -236,6 +236,46 @@ create-dmg \
     "$BUILD_DIR/$DMG_NAME" "$BUILD_DIR/ved_qt_app.app"
 ```
 
+### 2b/2c: Windows — `scripts/build-windows.ps1` + `packaging/windows/openved.wxs`
+
+**umgesetzt am 2026-07-22** (Branch `plan_installer_build_githun_distribution`):
+- `scripts/build-windows.ps1` baut lokal ein per-user MSI
+  (`OpenVED-0.1.0-x64.msi`, ~18,7 MB). Reproduzierbar getestet: sauberer
+  `build/release-win` → Configure → Build → **27/27 Tests** → windeployqt-Staging
+  → MSI; danach still installiert (`msiexec /qn`, exit 0, 50,5 MB in
+  `%LOCALAPPDATA%\OpenVED`), Startmenü-Verknüpfung angelegt, installierte
+  `OpenVED.exe` gestartet und stabil (Fenstertitel „VED Qt Port").
+- **Toolchain dieser Maschine:** MSVC 2022, Qt `C:\devtools\Qt\6.9.3\msvc2022_64`
+  (dynamisch → windeployqt), vcpkg `C:\devtools\vcpkg` Triplet
+  `x64-windows-static` (FreeType/HarfBuzz statisch), cmake/ninja VS-gebündelt.
+  Das Skript importiert `vcvars64.bat` und findet cmake/ninja per Fallback.
+- **Zentrale Erkenntnisse:**
+  1. `VCPKG_TARGET_TRIPLET` **muss** in PowerShell quotiert übergeben werden
+     (`-DVCPKG_TARGET_TRIPLET="$Triplet"`) — unquotiert landete literal
+     `$Triplet` im Cache → kaputte vcpkg-Config-Pfade.
+  2. `CMAKE_PREFIX_PATH` explizit auf Qt **und** den vcpkg-installed-Prefix
+     setzen, damit FreeType-CONFIG (zieht zlib/png/brotli/bzip2 transitiv) +
+     Qt sauber auflösen.
+  3. Der Qt-Widget-Test braucht das **offscreen**-Plugin, das
+     `ved_copy_qt_runtime` nicht staged → `QT_QPA_PLATFORM_PLUGIN_PATH` auf
+     `<Qt>\plugins\platforms` für ctest.
+  4. **WiX v5 gepinnt** (`dotnet tool install --global wix --version 5.0.2`):
+     WiX v6/v7 verlangen die kostenpflichtige OSMF-EULA (Fehler WIX7015).
+     Downgrade braucht uninstall+install (nicht `tool update`).
+  5. VC++-Runtime **app-lokal** gebündelt (`vcruntime140*.dll`, `msvcp140.dll`
+     aus dem VS-Redist) statt windeployqts `--compiler-runtime` (das nur den
+     24-MB-`vc_redist.x64.exe`-Installer beilegt, den ein per-user-MSI nie
+     ausführt) — Installer dadurch von 42,9 auf 18,7 MB geschrumpft.
+- `packaging/windows/openved.wxs`: WiX-4-Schema, `Scope="perUser"` →
+  `%LOCALAPPDATA%\OpenVED`, Payload rekursiv per `<Files Include="…\**">` aus
+  dem Staging-Verzeichnis geerntet (Qt-DLLs + Plugin-Ordner + `licenses/`),
+  Startmenü-Shortcut, `MajorUpgrade`, ARP-Icon.
+- **Offen:** `dxcompiler.dll`/`dxil.dll` (~15 MB, D3D-Shader-Compiler) noch im
+  Payload — für die reine Widgets-App verzichtbar, könnte getrimmt werden;
+  Code-Signing (`signtool`); `vcpkg.json` (2d) bewusst zurückgestellt.
+
+Der ursprünglich geplante Skelett-Code unten diente als Ausgangspunkt.
+
 ### 2b: Windows — `scripts/build-windows.ps1`
 
 ```powershell
@@ -293,7 +333,24 @@ aus dem Staging-Verzeichnis automatisch erfasst.
 
 ### 2d: vcpkg Manifest
 
-**Neue Datei: `vcpkg.json`**
+**umgesetzt am 2026-07-22** (Branch `plan_installer_build_githun_distribution`):
+- `vcpkg.json` angelegt — **abweichend vom Entwurf ohne `qtbase`**, nur
+  `freetype` + `harfbuzz`. Begruendung: Qt kommt in diesem Projekt **extern**
+  (lokal aus `C:\devtools\Qt`, in CI ueber `install-qt-action`); `qtbase` im
+  Manifest wuerde vcpkg zwingen, Qt **aus dem Quellcode** zu bauen (Stunden) und
+  mit der externen Qt kollidieren. Das Manifest deckt daher nur ab, was vcpkg
+  hier tatsaechlich liefert.
+- **Lokaler Build bleibt Classic-Mode:** `build-windows.ps1` uebergibt
+  `-DVCPKG_MANIFEST_MODE=OFF` und baut gegen den vorinstallierten
+  `C:\devtools\vcpkg\installed\x64-windows-static`-Baum. Die blosse Existenz der
+  `vcpkg.json` wuerde vcpkg sonst in den Manifest-Mode kippen (frischer
+  FreeType/HarfBuzz-Rebuild). Verifiziert: sauberer Rebuild mit vorhandener
+  `vcpkg.json` weiterhin gruen, MSI 18,6 MB.
+- Das Manifest ist damit die **dokumentierte Dependency-Quelle** und dient dem
+  CI-Build (Step 3, Manifest-Mode via `run-vcpkg`); lokal wird es bewusst
+  umgangen.
+
+Urspruenglicher Entwurf (mit `qtbase` — verworfen, s.o.):
 ```json
 {
     "name": "openved",

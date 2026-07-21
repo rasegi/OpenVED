@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WiX 4/5 installer definition for OpenVED (per-user MSI).
+
+  Installs into %LOCALAPPDATA%\OpenVED (no admin rights required) and creates a
+  Start Menu shortcut. The whole application payload is harvested from a staging
+  directory that build-windows.ps1 fills via windeployqt, so the exact set of Qt
+  DLLs and plugin subfolders does not need to be listed here.
+
+  Build (see scripts/build-windows.ps1):
+    wix build packaging\windows\openved.wxs -arch x64 ^
+      -d Version=0.1.0 ^
+      -d StagingDir=<abs path to staging> ^
+      -d IconFile=<abs path to openved.ico> ^
+      -o <out>\OpenVED-0.1.0-x64.msi
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package Name="OpenVED"
+             Manufacturer="Lukas Rasegi"
+             Version="$(Version)"
+             UpgradeCode="9F3B2C1A-4D5E-4F6A-8B7C-1D2E3F4A5B6C"
+             Scope="perUser"
+             Compressed="yes">
+
+        <!-- Block installing an older version over a newer one. -->
+        <MajorUpgrade DowngradeErrorMessage="A newer version of OpenVED is already installed." />
+
+        <MediaTemplate EmbedCab="yes" />
+
+        <!-- Add/Remove Programs icon. -->
+        <Icon Id="OpenVED.ico" SourceFile="$(IconFile)" />
+        <Property Id="ARPPRODUCTICON" Value="OpenVED.ico" />
+
+        <!-- Per-user install root: %LOCALAPPDATA%\OpenVED -->
+        <StandardDirectory Id="LocalAppDataFolder">
+            <Directory Id="INSTALLFOLDER" Name="OpenVED" />
+        </StandardDirectory>
+
+        <!-- Start Menu shortcut folder. -->
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="AppShortcutFolder" Name="OpenVED" />
+        </StandardDirectory>
+
+        <Feature Id="Main" Title="OpenVED" Level="1">
+            <ComponentGroupRef Id="AppFiles" />
+            <ComponentRef Id="AppShortcut" />
+        </Feature>
+    </Package>
+
+    <!-- Application payload, harvested recursively from the staging directory.
+         The directory structure below StagingDir (platforms\, styles\, ...) is
+         recreated under INSTALLFOLDER. -->
+    <Fragment>
+        <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+            <Files Include="$(StagingDir)\**" />
+        </ComponentGroup>
+    </Fragment>
+
+    <!-- Start Menu shortcut + its per-user registry key path. -->
+    <Fragment>
+        <Component Id="AppShortcut" Directory="AppShortcutFolder"
+                   Guid="2A1B3C4D-5E6F-4A7B-9C8D-0E1F2A3B4C5D">
+            <Shortcut Id="AppStartMenu"
+                      Name="OpenVED"
+                      Description="OpenVED vector editor"
+                      Target="[INSTALLFOLDER]OpenVED.exe"
+                      WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveAppShortcutFolder"
+                          Directory="AppShortcutFolder"
+                          On="uninstall" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\OpenVED"
+                           Name="installed"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+        </Component>
+    </Fragment>
+</Wix>

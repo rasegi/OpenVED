@@ -1,0 +1,10 @@
+{
+    "name": "openved",
+    "version": "0.1.0",
+    "description": "Modern Qt6/C++23 port of the VED vector editor",
+    "homepage": "https://github.com/rasegi/OpenVED",
+    "dependencies": [
+        "freetype",
+        "harfbuzz"
+    ]
+}
