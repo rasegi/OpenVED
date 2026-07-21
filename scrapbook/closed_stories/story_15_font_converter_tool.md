@@ -1,7 +1,13 @@
 # Story 15: TTF/OTF → VFN Font-Converter-Tool
 
 Datum: 2026-07-20
-Status: offen
+Status: **erledigt** (abgeschlossen 2026-07-21)
+
+Abnahme: `Ved:Amiri` (Arabisch/Persisch, verbunden + RTL) sowie das Bundle
+visuell durch User bestaetigt; Provider-Refactoring, VFN-Round-Trip,
+Konverter-Pipeline und Config-Persistenz durch Tests (`ctest` 27/27) verifiziert.
+Hinweis: Die VFN-Bundle-Punkte aus Step 4 sind durch Step 6 (TTF-Bundle)
+ueberholt; die dortigen offenen Checkboxen sind damit gegenstandslos.
 
 ## Kontext
 
