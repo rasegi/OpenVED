@@ -59,7 +59,7 @@ Courier New → Liberation Mono).
 ## Bundled fonts — DejaVu (optional, wider Unicode coverage)
 
 - **License:** Bitstream Vera License + public-domain additions —
-  see `licenses/DejaVu-LICENSE.txt` (to be added when DejaVu is included).
+  see `licenses/DejaVu-LICENSE.txt`.
 - **Source:** https://dejavu-fonts.github.io
 
 ---

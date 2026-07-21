@@ -159,11 +159,20 @@ APIs and internal structures may still evolve.
 
 ## License
 
-OpenVED is released under the MIT License.
+OpenVED is released under the MIT License — see [`LICENSE`](LICENSE).
 
-This project uses Qt under the LGPL license, as well as FreeType and HarfBuzz under their respective licenses.
+It also links against and/or bundles third-party components under their own
+licenses:
 
-See LICENSE for details.
+- **Qt 6** (Widgets, Gui, PrintSupport) — LGPL v3
+- **FreeType** — FreeType License (FTL)
+- **HarfBuzz** — "Old MIT" License
+- **Bundled fonts** — Liberation family (SIL OFL 1.1), optionally DejaVu
+  (Bitstream Vera + public domain)
+
+Full texts are in [`licenses/`](licenses/); attribution, linking details and
+required credits are documented in
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ---
 
