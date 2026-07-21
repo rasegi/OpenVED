@@ -220,6 +220,13 @@ MainWindow::MainWindow(QWidget* parent)
     createTextDock();
     defaultWindowState_ = saveState(kMainWindowStateVersion);
     readSettings();
+    // initializeEditor() built the font stack before createMenus() applied the
+    // persisted "Convert System Fonts" state (the menu action did not exist yet).
+    // If it is enabled, rebuild now so the system fonts are actually indexed and
+    // converted at startup, and appear in the font selection.
+    if (systemFontsEnabled() && fontManager_) {
+        rebuildFontProviders();
+    }
     updateModifyCommandActions();
     statusBarSplitter_ = new QSplitter(Qt::Horizontal, this);
     statusBarSplitter_->setChildrenCollapsible(false);
@@ -614,8 +621,15 @@ void MainWindow::createMenus() {
     convertSystemFontsAction_->setEnabled(false);
     convertSystemFontsAction_->setToolTip(QStringLiteral("Not available in the browser build"));
 #else
-    convertSystemFontsAction_->setChecked(
-        QSettings().value(QString::fromLatin1(kSettingsConvertSystemFonts), false).toBool());
+    {
+        QSettings settings;
+        const QString convertSystemFontsKey = QString::fromLatin1(kSettingsConvertSystemFonts);
+        if (!settings.contains(convertSystemFontsKey)) {
+            // First run: no stored value yet — default to disabled and persist it.
+            settings.setValue(convertSystemFontsKey, false);
+        }
+        convertSystemFontsAction_->setChecked(settings.value(convertSystemFontsKey, false).toBool());
+    }
 #endif
     // Connect after the initial setChecked so startup does not emit toggled().
     connect(convertSystemFontsAction_, &QAction::toggled, this, &MainWindow::onToggleSystemFonts);
