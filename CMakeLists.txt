@@ -312,6 +312,37 @@ set_target_properties(ved_qt_gengine PROPERTIES
     AUTORCC OFF
 )
 
+# Qt-free TrueType/OpenType -> VED vector font conversion (FreeType only).
+# Shared by the Qt system font provider and, later, a standalone CLI converter.
+add_library(ved_fontconvert STATIC
+    src/ved_fontconvert/ttf_to_vecfont.cpp
+    src/ved_fontconvert/ttf_to_vecfont.h
+)
+
+target_include_directories(ved_fontconvert
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/ved_fontconvert"
+        ${VED_FREETYPE_INCLUDE_DIRS}
+)
+
+target_link_libraries(ved_fontconvert
+    PUBLIC
+        ved_core
+        ${VED_FREETYPE_LINK_TARGET}
+        ${VED_FREETYPE_STATIC_DEPS}
+)
+
+target_link_directories(ved_fontconvert
+    PUBLIC
+        ${VED_FREETYPE_LIBRARY_DIRS}
+)
+
+set_target_properties(ved_fontconvert PROPERTIES
+    AUTOMOC OFF
+    AUTOUIC OFF
+    AUTORCC OFF
+)
+
 file(GLOB VED_TOOLBAR_ICONS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/toolbar/*.bmp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/app/resources/toolbar/*.png"
@@ -360,6 +391,7 @@ qt_add_resources(ved_qt_app "ved_resources"
 target_link_libraries(ved_qt_app
     PRIVATE
         ved_qt_gengine
+        ved_fontconvert
         Qt6::Widgets
         Qt6::PrintSupport
         ${VED_HARFBUZZ_LINK_TARGET}

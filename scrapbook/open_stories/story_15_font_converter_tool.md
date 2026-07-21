@@ -82,11 +82,31 @@ ved_font_converter --in <font.ttf> --out <font.vfn> \
 - `TDQtSystemFontProvider` auf diese Einheit umstellen (Verhalten unveraendert).
 
 **Tests:**
-- [ ] `TDQtSystemFontProvider` liefert nach dem Refactoring identische
-      `TDVecFont`-Ergebnisse wie zuvor (Glyph-Kontur-Vergleich mit Toleranz).
-- [ ] Native App laedt Systemfonts weiterhin korrekt.
+- [x] Build gruen, `ctest` 25/25 gruen, App-Smoke-Test (headless, 5s) startet
+      stabil inkl. Font-Provider-Init. _(2026-07-21)_
+- [ ] `TDQtSystemFontProvider` liefert identische `TDVecFont`-Ergebnisse
+      (dedizierter Glyph-Kontur-Vergleichstest folgt in Paket A / Step 2).
+- [ ] Native App laedt Systemfonts weiterhin korrekt (visuelle Abnahme durch User).
 
-**Log:** _(nach Umsetzung ausfuellen)_
+**Log:**
+Umgesetzt am 2026-07-21 (reines Refactoring, verhaltensneutral).
+- Neue Qt-freie Einheit `src/ved_fontconvert/ttf_to_vecfont.{h,cpp}` als
+  Static-Lib `ved_fontconvert` (linkt `ved_core` + FreeType, kein Qt). Exportiert
+  `FaceScale`, `ConvertGlyphOutline`, `ConvertTrueTypeFileToVecFont`.
+- Die Konvertierungslogik (FreeType-Setup, Outline-Callbacks, `OutlineContext`,
+  `faceScale`, `convertGlyphOutline`, `convertFontFileWithFreeType`) wurde
+  **byte-identisch** aus `src/app/QtVecFontProviders.cpp` verschoben; nur Qt-Typen
+  an der Grenze getauscht (`QString`->`std::string`).
+- `TDQtSystemFontProvider` nutzt die Einheit: `LoadFont` ->
+  `ConvertTrueTypeFileToVecFont` (Pfad weiterhin via `QFile::encodeName`,
+  Font-Name weiterhin `fontIdForFamily` = "TT:family"); `ShapeText` ->
+  `FaceScale` + `ConvertGlyphOutline`.
+- Im Provider verbleiben (Qt-/HarfBuzz-gebunden): System-Font-Scan
+  (`EnsureFontIndex`, nutzt weiterhin `FreeTypeLibrary`), HarfBuzz-Shaping,
+  Builtin-VFN-Provider.
+- CMake: neues Target `ved_fontconvert`, von `ved_qt_app` gelinkt.
+- Verifikation: `cmake --build cmake-build-debug` fehlerfrei, `ctest` 25/25,
+  Headless-Smoke-Test (`QT_QPA_PLATFORM=offscreen`, 5s) ohne Crash.
 
 ### Step 2: VFN-Schreibpfad kapseln
 
