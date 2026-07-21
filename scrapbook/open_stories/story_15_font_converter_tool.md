@@ -131,6 +131,9 @@ MS-Kernschriften plus breite Unicode-/Arabic-Abdeckung:
 | Mono | Liberation Mono (Regular) | OFL 1.1 | Courier New |
 | Unicode-Breite | DejaVu Sans/Serif/Mono | Bitstream Vera / public | breite Latin/Symbol-Abdeckung |
 | Arabic/Naskh | Amiri (Regular/Bold/Italic) | OFL 1.1 | arabischer/persischer RTL-Text |
+| Latin/Greek/Cyrillic | Noto Sans + Noto Serif (R/B/I) | OFL 1.1 | latein, griechisch, slavisch (kyrillisch) |
+| Hebrew | Noto Sans/Serif Hebrew (R/B) | OFL 1.1 | hebräischer Text |
+| Arabic/Persian | Noto Sans Arabic + Noto Naskh Arabic (R/B) | OFL 1.1 | arabisch/persisch (RTL), Noto-Alternative zu Amiri |
 
 Hinweis: **Arial und Courier New selbst sind proprietaer** (Monotype) und
 duerfen nicht gebuendelt/konvertiert werden — daher die Liberation-Familie.
@@ -146,6 +149,7 @@ LGPL/GPL-Rechtstexte, **nicht** die Fonts.
 | DejaVu (Sans/Serif/Mono) | github.com/dejavu-fonts/dejavu-fonts (Release-Archiv) | 2.37 | offizielle fertige TTF |
 | Liberation (Sans/Serif/Mono) | lokale LibreOffice-Installation (26.2.4.2) | 2.1.5 | siehe unten |
 | Amiri (Regular/Bold/Italic + Quran) | github.com/aliftype/amiri (main, `fonts/`) | ~1.003 | offizielle fertige TTF, Arabic |
+| Noto (Sans/Serif, Hebrew, Arabic, Naskh) | github.com/googlefonts/noto-fonts (`hinted/ttf/`) | main | offizielle fertige TTF; Latin/Greek/Cyrillic/Hebrew/Arabic |
 
 Hinweis Liberation: Es gibt **keine offiziellen fertigen Liberation-TTF zum
 Download** — die GitHub-Releases enthalten nur `.sfd`-Quellen, und `fontforge`
@@ -160,6 +164,7 @@ unmodifiziert, die Lizenzlage (OFL 1.1) ist damit sauber.
 third_party/fonts/liberation/   Liberation*.ttf   (v2.1.5, aus LibreOffice, 16 Dateien)
 third_party/fonts/dejavu/        DejaVu*.ttf       (v2.37, offiziell, 6 Dateien)
 third_party/fonts/amiri/         Amiri*.ttf        (~v1.003, offiziell, 6 Dateien)
+third_party/fonts/noto/          Noto*.ttf         (main, offiziell, 16 Dateien)
 src/app/resources/font/          *.vfn             (konvertiert, Qt-Ressource)
 ```
 Grund fuers Committen der `.vfn`: `ved_font_converter` ist ein **natives** Tool

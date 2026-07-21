@@ -79,6 +79,17 @@ Arabic/Persian RTL text coverage.
   color font) are unsuitable for monochrome outline conversion to `.vfn` and are
   kept for completeness only — they are not converted.
 
+## Bundled fonts — Noto (Latin / Greek / Cyrillic / Hebrew / Arabic)
+
+Broad multi-script coverage: Noto Sans/Serif (Latin, Greek, Cyrillic incl.
+Slavic), Noto Sans/Serif Hebrew, Noto Sans Arabic + Noto Naskh Arabic (Arabic
+and Persian/Farsi, which use the Arabic script).
+
+- **License:** SIL Open Font License 1.1 — see `licenses/Noto-OFL-1.1.txt`.
+- **Source:** github.com/googlefonts/noto-fonts (`hinted/ttf/`), main branch —
+  prebuilt TTF (`third_party/fonts/noto/`, 16 files, Regular/Bold, plus Italic
+  for the Latin Sans/Serif families).
+
 ---
 
 ## Notes for maintainers
