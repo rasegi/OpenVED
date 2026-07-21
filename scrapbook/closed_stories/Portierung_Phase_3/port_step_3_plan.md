@@ -38,7 +38,7 @@ Die Borland-Text- und Fontklassen haengen direkt an alten SCLIB-Typen:
 - Utility-Funktionen wie `StringCopy`, `StringSize`, `MemoryAlloc`, `MemoryReAlloc`
 
 Im aktuellen Qt-Core gibt es davon praktisch noch nichts. In
-`src/ved_core/main/vec_maindef.h` existiert nur eine Forward-Deklaration:
+`../../../src/ved_core/main/vec_maindef.h` existiert nur eine Forward-Deklaration:
 
 - `template<class T>class TDObjPtrArray;`
 - `typedef TDObjPtrArray<TDVecObject> TDVecObjList;`

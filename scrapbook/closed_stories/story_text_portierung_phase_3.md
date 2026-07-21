@@ -371,8 +371,8 @@ Letzter Stand:
 
 ## Referenzen
 
-- `scrapbook/Portierung_Phase_3/port_step_3_001.log`
-- `scrapbook/Portierung_Phase_3/port_step_3_002.log`
-- `scrapbook/Portierung_Phase_3/port_step_3_003.log`
-- `scrapbook/Portierung_Phase_3/port_step_3_004.log`
+- `Portierung_Phase_3/port_step_3_001.log`
+- `Portierung_Phase_3/port_step_3_002.log`
+- `Portierung_Phase_3/port_step_3_003.log`
+- `Portierung_Phase_3/port_step_3_004.log`
 - `scrapbook/open_stories/story_font_provider_truetype_converter_plugin.md`
