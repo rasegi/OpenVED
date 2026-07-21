@@ -19,7 +19,7 @@ unsigned char byteAt(const std::vector<std::byte>& data, std::size_t index)
 int main()
 {
     // Load the bundled default font.
-    std::ifstream file("../src/app/resources/font/wps_default.vfn", std::ios::binary);
+    std::ifstream file("src/app/resources/font/wps_default.vfn", std::ios::binary);
     assert(file);
     const std::vector<char> original((std::istreambuf_iterator<char>(file)),
                                      std::istreambuf_iterator<char>());

@@ -14,7 +14,7 @@
 
 int main()
 {
-    const std::string ttf = "../third_party/fonts/liberation/LiberationSans-Regular.ttf";
+    const std::string ttf = "third_party/fonts/liberation/LiberationSans-Regular.ttf";
     const std::string name = "VC:Liberation Sans";
 
     // TTF -> TDVecFont (the FreeType conversion behind the CLI).
@@ -55,7 +55,7 @@ int main()
     // carry far more characters and provide a real outline for an Arabic letter.
     std::unique_ptr<TDVecFont> arabic =
         ved::fontconvert::ConvertTrueTypeFileToVecFont(
-            "../third_party/fonts/amiri/Amiri-Regular.ttf", 0, "VC:Amiri",
+            "third_party/fonts/amiri/Amiri-Regular.ttf", 0, "VC:Amiri",
             ved::fontconvert::CharacterCoverage::FullCmap);
     assert(arabic);
     assert(arabic->CountVecCharacters() > 224);

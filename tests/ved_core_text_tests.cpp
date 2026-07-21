@@ -19,7 +19,7 @@ namespace {
 
 std::unique_ptr<TDVecFont> loadDefaultFont()
 {
-    std::ifstream file("../src/app/resources/font/wps_default.vfn", std::ios::binary);
+    std::ifstream file("src/app/resources/font/wps_default.vfn", std::ios::binary);
     assert(file);
     std::vector<char> data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     std::unique_ptr<TDVecFont> font = LoadVecFontFromMemory(data.data(), static_cast<long>(data.size()));

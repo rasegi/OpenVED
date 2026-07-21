@@ -159,6 +159,36 @@ Spaeter durch eigenes App-Icon in Qt-Ressourcen ersetzen.
 
 ### 2a: macOS — `scripts/build-macos.sh`
 
+**umgesetzt am 2026-07-22** (Branch `plan_installer_build_githun_distribution`):
+- `scripts/build-macos.sh` erstellt ein self-contained, ad-hoc signiertes DMG
+  (`OpenVED-0.1.0-macOS-arm64.dmg`, ~29 MB). Reproduzierbar getestet: frischer
+  `rm -rf build/release` → Configure → Build → 27/27 Tests → Bundle → Smoke-Test
+  → DMG; App aus dem gemounteten DMG heraus gestartet und stabil.
+- `OUTPUT_NAME "OpenVED"` ist jetzt aktiv (Bundle heisst `OpenVED.app`).
+- Tests laufen headless via `QT_QPA_PLATFORM=offscreen`.
+- **Homebrew-Qt-Fixup (zentrale Erkenntnis):** `macdeployqt` liefert bei
+  Homebrew-Qt kein vollstaendiges Bundle:
+  1. Qt-Frameworks liegen unter der `qtbase`-Keg, nicht auf dem Default-Suchpfad
+     → `-libpath="$(brew --prefix qtbase)/lib"`.
+  2. `macdeployqt` schreibt `QtGui → @rpath/QtDBus` um, **kopiert QtDBus aber
+     nicht** ins Bundle → Absturz beim Start (`Library not loaded:
+     @rpath/QtDBus.framework`). Ausserdem fehlen transitive Homebrew-`.dylib`s
+     (`libdbus-1.3`).
+  → Post-`macdeployqt`-Fixup schliesst die Abhaengigkeits-Huelle iterativ:
+  fehlende `@rpath`-Qt-Frameworks nachziehen, absolute Homebrew-Qt-Referenzen
+  auf `@rpath` umbiegen, transitive `.dylib`s einbetten, System-/Homebrew-rpaths
+  entfernen (verhindert Doppel-Load → `class implemented in both`), ad-hoc
+  signieren (arm64 verweigert sonst invalidierte Signatur), Smoke-Test.
+- **Hinweis:** In der CI (Step 3) wird **offizielles Qt** via
+  `install-qt-action` genutzt; dort erzeugt `macdeployqt` bereits ein
+  vollstaendiges Bundle und der Fixup ist ein harmloser No-Op.
+- Offen: Code-Signing/Notarization mit echtem Developer-ID-Zertifikat (Hook
+  vorbereitet: `-` durch `Developer ID Application: …` ersetzen); `create-dmg`
+  fuer Drag-to-Applications-UI (aktuell schlichtes `hdiutil`-DMG).
+
+Der urspruenglich geplante Skelett-Code unten diente als Ausgangspunkt; das
+tatsaechliche Skript enthaelt zusaetzlich den oben beschriebenen Fixup.
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail

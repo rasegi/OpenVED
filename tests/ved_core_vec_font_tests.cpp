@@ -11,7 +11,7 @@
 
 int main()
 {
-    std::ifstream file("../src/app/resources/font/wps_default.vfn", std::ios::binary);
+    std::ifstream file("src/app/resources/font/wps_default.vfn", std::ios::binary);
     assert(file);
 
     std::vector<char> data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());

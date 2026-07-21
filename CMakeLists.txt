@@ -434,6 +434,7 @@ target_link_directories(ved_qt_app
 set_target_properties(ved_qt_app PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
+    OUTPUT_NAME "OpenVED"
     MACOSX_BUNDLE_BUNDLE_NAME "OpenVED"
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.ved.openved"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
@@ -763,6 +764,35 @@ add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)
 add_test(NAME ved_core_units_tests COMMAND ved_core_units_tests)
 add_test(NAME ved_core_export_mapper_tests COMMAND ved_core_export_mapper_tests)
 add_test(NAME ved_qt_gengine_outline_tests COMMAND ved_qt_gengine_outline_tests)
+
+# These tests read bundled resources / source fonts by project-relative path,
+# so run them from the project root regardless of where the build dir lives.
+set_tests_properties(
+    ved_core_vec_font_tests
+    ved_core_vfn_save_roundtrip_tests
+    ved_core_text_tests
+    PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+if(NOT EMSCRIPTEN)
+    set_tests_properties(ved_fontconvert_pipeline_tests
+        PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+endif()
+
+# The tests verify with assert(); a Release build defines NDEBUG and would strip
+# those checks — and any side effects inside them (e.g. reader.ReadFourCC()) —
+# turning tests into silent no-ops or crashes. Keep asserts enabled for every
+# test target in all configurations.
+file(GLOB VED_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
+foreach(test_src IN LISTS VED_TEST_SOURCES)
+    get_filename_component(test_name "${test_src}" NAME_WE)
+    if(TARGET ${test_name})
+        if(MSVC)
+            target_compile_options(${test_name} PRIVATE /UNDEBUG)
+        else()
+            target_compile_options(${test_name} PRIVATE -UNDEBUG)
+        endif()
+    endif()
+endforeach()
 set_tests_properties(ved_qt_gengine_outline_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
