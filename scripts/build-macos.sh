@@ -31,6 +31,7 @@ echo "==> OpenVED ${VERSION} — macOS release build"
 # 1. Configure (Release)
 cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_FIND_FRAMEWORK=LAST \
     -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix freetype);$(brew --prefix harfbuzz)" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
     -DCMAKE_OSX_ARCHITECTURES=arm64

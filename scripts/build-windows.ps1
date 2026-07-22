@@ -84,7 +84,14 @@ $VcpkgInstalled = Join-Path $VcpkgRoot "installed\$Triplet"
     -DCMAKE_TOOLCHAIN_FILE="$VcpkgRoot\scripts\buildsystems\vcpkg.cmake" `
     -DVCPKG_TARGET_TRIPLET="$Triplet" `
     -DVCPKG_MANIFEST_MODE=OFF `
+    -DVCPKG_APPLOCAL_DEPS=OFF `
     -DCMAKE_PREFIX_PATH="$QtDir;$VcpkgInstalled"
+# VCPKG_APPLOCAL_DEPS=OFF: the vcpkg toolchain otherwise runs "vcpkg z-applocal"
+# as a post-build step for every exe to copy DLLs next to it. With the static
+# triplet there are no DLLs to copy, and on parallel CI builds these concurrent
+# invocations race for the same files ("cannot access the file ... used by
+# another process"). We deploy the final app's Qt runtime explicitly via
+# windeployqt below, so this auto-deploy is not needed.
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 
 # --- 4. Build -----------------------------------------------------------------
@@ -102,6 +109,9 @@ if (-not $SkipTests) {
     # install so ctest can find it.
     $env:QT_QPA_PLATFORM = "offscreen"
     $env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $QtDir "plugins\platforms"
+    # With VCPKG_APPLOCAL_DEPS=OFF the Qt DLLs are no longer copied next to each
+    # test exe, so put the Qt bin dir on PATH for the test run instead.
+    $env:PATH = (Join-Path $QtDir "bin") + ";" + $env:PATH
     & $ctestExe --test-dir $BuildDir --output-on-failure
     if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
 }
