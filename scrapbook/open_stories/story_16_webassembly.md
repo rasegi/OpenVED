@@ -105,14 +105,115 @@ statisch gehostetes Web-Bundle (GitHub Pages) ueber die bestehende CI-Pipeline.
   `.wasm`, `qtloader.js`.
 
 ### Tests
-- [ ] `ved_core` kompiliert vollstaendig unter Emscripten (Bibliotheks-Target).
-- [ ] `ved_qt_app` linkt zu einem `.wasm` + `.html`-Bundle.
-- [ ] Bundle laedt in Chrome und Firefox, MainWindow erscheint, leeres Blatt
-      sichtbar.
-- [ ] Native Desktop-Builds (macOS/Windows) bauen unveraendert weiter.
+- [x] `ved_core` kompiliert vollstaendig unter Emscripten (Bibliotheks-Target).
+- [x] `ved_qt_app` linkt zu einem `.wasm` + `.html`-Bundle.
+- [x] Bundle laedt (in **Chrome** bestaetigt), MainWindow erscheint, Zeichnen +
+      Text funktionieren. (Firefox noch nicht separat geprueft.)
+- [x] Native Desktop-Builds: CMake-Aenderungen sind alle `EMSCRIPTEN`-gegated;
+      nativer Configure verifiziert gruen (voller nativer Rebuild noch offen).
 
 ### Log
-_(nach Umsetzung ausfuellen)_
+
+**umgesetzt am 2026-07-28/29** (Branch `story_16_webassembly_step_1`):
+
+**Toolchain — mit Upgrade auf Qt 6.11.**
+- Start mit **Qt 6.9.3 wasm_singlethread** + **Emscripten 3.1.70** (per Qt-Doku
+  gekoppelt), Host-Qt = Homebrew `qtbase 6.9.3` (`QT_HOST_PATH`), installiert via
+  `emsdk` + `aqtinstall` (in venv `~/.aqt-venv`, wegen PEP-668).
+- **Upgrade auf Qt 6.11.1** (Grund: Combobox-Bug unten): **Emscripten 4.0.7** +
+  Qt **6.11.1 wasm_singlethread** + Qt **6.11.1 Desktop (clang_64)** als Host-Qt
+  (Homebrew 6.9.3 passt als Host nicht mehr zur 6.11-Target-Version). Damit
+  weicht die Story von der urspruenglichen Annahme "Qt 6.8 LTS" ab — bewusst
+  auf **6.11.1**.
+- WASM-Configure:
+  `-DCMAKE_TOOLCHAIN_FILE=~/Qt/6.11.1/wasm_singlethread/lib/cmake/Qt6/qt.toolchain.cmake`
+  `-DQT_HOST_PATH=~/Qt/6.11.1/macos`. (Pfade aktuell nur manuell — ein
+  `scripts/build-wasm.sh` folgt in Step 6.)
+
+**CMake-Anpassungen (`CMakeLists.txt`, alle `EMSCRIPTEN`-gegated):**
+- FreeType/HarfBuzz unter Emscripten ueber die **Ports** (`-sUSE_FREETYPE=1`,
+  `-sUSE_HARFBUZZ=1` als compile+link options); native find-/vendor-Logik bleibt
+  unberuehrt. `ved_core` nutzt FreeType/HarfBuzz direkt — die Ports liefern
+  Header + Libs.
+- `ved_qt_gengine_outline_tests` (Qt/QPainter-Test) unter WASM ausgeschlossen:
+  linkt `libqwasm` (embind-Symbole, die ein CLI-Test nicht bereitstellt) und ist
+  headless sinnlos. Die uebrigen `ved_core_*`-Tests bauen als `.wasm`.
+- **Asyncify** fuers App-Target: `-sASYNCIFY -sASYNCIFY_STACK_SIZE=131072`.
+  Noetig, weil modale Dialoge (`QDialog`/`QMessageBox::exec()`) eine
+  verschachtelte Event-Loop nutzen, die in single-threaded WASM ohne Asyncify
+  nicht laeuft → Dialoge erschienen leer und liessen sich nicht wegklicken.
+  Binary dadurch ~17 MB → ~25 MB. (Multithread-WASM bleibt Nicht-Ziel.)
+
+**Combobox-in-Dialog-Bug → Grund fuers 6.11-Upgrade:**
+- Unter **Qt 6.9.3** (auch mit Asyncify): Comboboxen in Dialogen (New-Dialog:
+  Unit/Format/Orientation) oeffneten das Popup, aber **Maus-Auswahl** ging nicht
+  — nur **Tastatur**. Im Hauptfenster funktionierten Comboboxen normal. Bekannter,
+  ungeloester Qt-WASM-Bug (Popup-Maus-Routing ueber Dialogen; Wurzel:
+  `QDialog::exec()` in WASM, QTBUG-90989; Qt-Forum-Thread 161427).
+- **Unter Qt 6.11.1 behoben** — Maus-Auswahl in Dialog-Comboboxen funktioniert.
+
+**Funktioniert im Browser (Qt 6.11.1, vom User abgenommen):**
+Laden, Zeichnen, Text schreiben, modale Dialoge (Inhalt sichtbar + bedienbar),
+**Speichern** (Qt-6.11-WASM mappt `QFileDialog::getSaveFileName` intern auf einen
+Browser-Download → nativer Code laeuft ohne Umbau).
+
+**Noch offen / fuer Folge-Steps:**
+- PDF-Export und Print im Browser pruefen (Step 2) — evtl. durch Qt 6.11 schon
+  teilweise gedeckt.
+- Öffnen (Upload) verifizieren (Step 3).
+- Reproduzierbares `scripts/build-wasm.sh` (Step 6).
+- Voller nativer Rebuild + Abnahme (Regression durch CMake-Aenderungen
+  ausschliessen).
+- Firefox-Test.
+
+---
+
+## Step 1b: FreeType/HarfBuzz-Versionskonsistenz (native ↔ WASM)
+
+Datum: 2026-07-29
+
+**Problem (entdeckt nach Step 1):** WASM- und native-Build rendern denselben Text
+(z.B. Amiri/Persisch) sichtbar unterschiedlich — bereits im Editor, nicht nur im
+PDF-Export. Ursache: Die Font-Bibliotheken stammen aus verschiedenen Quellen mit
+verschiedenen Versionen.
+
+| Bibliothek | Native (Homebrew) | WASM (Emscripten-Port) |
+|---|---|---|
+| FreeType | 2.14.3 | 2.13.3 |
+| HarfBuzz | **12.3.2** | **3.2.0** |
+
+HarfBuzz 3.2.0 (Emscripten-Port, ~2021) ist gegenueber 12.3.2 (nativ) neun Major-
+Versionen alt → abweichendes Shaping (Buchstabenverbindung/-form), besonders bei
+Arabisch/Persisch. Die FreeType-Differenz erklaert zusaetzliche Outline-Unter-
+schiede (und die stark abweichenden PDF-Groessen: 26 KB nativ vs 194 KB WASM fuer
+dieselbe Datei `Work/Lukas.ved`, Amiri-Text). Nativ (aktuelle Bibliotheken) ist
+das korrektere Ergebnis.
+
+**Ziel:** Identisches Text-Rendering auf allen Plattformen.
+
+### Was
+- FreeType + HarfBuzz **nicht** mehr aus Homebrew (native) bzw. Emscripten-Port
+  (WASM) beziehen, sondern in **einer festen Version fuer alle Plattformen** via
+  **`FetchContent`** aus Source bauen (CMake laedt die Quellen und kompiliert sie
+  fuer das jeweilige Ziel — nativer Compiler bzw. Emscripten).
+- Versionen pinnen: **HarfBuzz 12.x** (aktuelles Shaping, = bisheriges natives
+  Verhalten) + **FreeType 2.14.x**. Als gepinnte Git-Tags/Releases.
+- Abhaengigkeit HarfBuzz ↔ FreeType korrekt aufsetzen (HarfBuzz mit FreeType-
+  Unterstuetzung bauen, richtige Link-Reihenfolge).
+- Den Emscripten-Ports-Zweig (`-sUSE_FREETYPE`/`-sUSE_HARFBUZZ`) aus Step 1
+  ersetzen; den nativen find-/Homebrew-Zweig ebenfalls auf FetchContent umstellen.
+- Als Alternative (Offline-Build) vendored `third_party/` dokumentieren.
+
+### Tests
+- [ ] Nativer Build weiter gruen; alle Tests bestehen.
+- [ ] WASM-Build weiter gruen.
+- [ ] `Work/Lukas.ved`: WASM- und native-PDF sind **deckungsgleich** (Amiri-Text
+      identisch geformt/positioniert), PDF-Groessen vergleichbar.
+- [ ] Stichprobe weiterer Skripte (Latin, Kyrillisch, Griechisch, Hebraeisch,
+      Arabisch/Persisch): WASM-Rendering == natives Rendering.
+
+### Log
+_(nach Umsetzung ausfuellen — Branch `story_16_webassembly_step_2`)_
 
 ---
 
@@ -331,9 +432,14 @@ _(nach Umsetzung ausfuellen)_
 ## Reihenfolge
 
 0. **Story 15** (`ved_font_converter`-CLI) — Voraussetzung fuer Step 4.
-1. Step 1 — Toolchain + WASM-Build steht (leeres Fenster laedt).
-2. Step 2 — PrintSupport entkoppeln (Build linkt sauber).
-3. Step 3 — Datei-I/O async (Laden/Speichern im Browser).
+1. Step 1 — Toolchain + WASM-Build steht (leeres Fenster laedt). **✓ erledigt**
+   (auf Qt 6.11.1, mit Asyncify; Zeichnen/Text/Dialoge/Save laufen im Browser).
+1b. Step 1b — FreeType/HarfBuzz-Versionskonsistenz (FetchContent), damit WASM
+   **identisch** zu nativ rendert. **← naechster Schritt** (`step_2`-Branch).
+2. Step 2 — PrintSupport / PDF-Export: unter Qt 6.11 im Browser **bereits
+   funktionsfaehig** (PDF-Export + Druck getestet); ggf. nur noch Feinschliff.
+3. Step 3 — Datei-I/O: Speichern funktioniert unter Qt 6.11 bereits; Oeffnen
+   (Upload) noch verifizieren.
 4. Step 4b/4c — Basis-Bundle (via Story-15-CLI) + Multi-VFN-Provider (Text im Browser).
 5. Step 5 — Settings/Paths.
 6. Step 4d — Lokaler Font-Server (optionaler Komfort, nach dem Durchstich).

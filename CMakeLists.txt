@@ -67,7 +67,17 @@ set(VED_FREETYPE_LIBRARY_DIRS)
 set(VED_HARFBUZZ_STATIC_DEPS)
 set(VED_HARFBUZZ_INCLUDE_DIRS)
 set(VED_HARFBUZZ_LIBRARY_DIRS)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/CMakeLists.txt")
+if(EMSCRIPTEN)
+    # Emscripten provides FreeType + HarfBuzz as ports: the -sUSE_FREETYPE /
+    # -sUSE_HARFBUZZ compile+link flags pull in headers and prebuilt libs, so no
+    # find_package or vendored build is needed. Link targets stay empty (the
+    # flags do the linking). Set for both here so the HarfBuzz block below is a
+    # no-op under Emscripten.
+    add_compile_options(-sUSE_FREETYPE=1 -sUSE_HARFBUZZ=1)
+    add_link_options(-sUSE_FREETYPE=1 -sUSE_HARFBUZZ=1)
+    set(VED_FREETYPE_LINK_TARGET "")
+    set(VED_HARFBUZZ_LINK_TARGET "")
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(third_party/freetype EXCLUDE_FROM_ALL)
     set(VED_FREETYPE_LINK_TARGET freetype)
@@ -101,7 +111,9 @@ elseif(NOT VED_FREETYPE_LINK_TARGET)
         set(VED_FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIR})
     endif()
 endif()
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/harfbuzz/CMakeLists.txt")
+if(EMSCRIPTEN)
+    # HarfBuzz handled together with FreeType above (Emscripten port).
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/harfbuzz/CMakeLists.txt")
     set(BUILD_SHARED_LIBS OFF)
     add_subdirectory(third_party/harfbuzz EXCLUDE_FROM_ALL)
     set(VED_HARFBUZZ_LINK_TARGET harfbuzz)
@@ -419,6 +431,18 @@ target_link_libraries(ved_qt_app
         ${VED_FREETYPE_STATIC_DEPS}
 )
 
+if(EMSCRIPTEN)
+    # Modal dialogs (QDialog/QMessageBox::exec()) use a nested event loop. In
+    # single-threaded WASM that loop cannot run without Asyncify: dialogs render
+    # empty and cannot be dismissed. Asyncify unwinds/rewinds the C++ stack so
+    # exec() yields to the browser (render + input) and resumes on user action.
+    # Larger stack size than the 4 KB default — Qt's call chains are deep.
+    target_link_options(ved_qt_app PRIVATE
+        -sASYNCIFY
+        -sASYNCIFY_STACK_SIZE=131072
+    )
+endif()
+
 target_include_directories(ved_qt_app
     PRIVATE
         ${VED_FREETYPE_INCLUDE_DIRS}
@@ -593,9 +617,14 @@ add_executable(ved_core_export_mapper_tests
     tests/ved_core_export_mapper_tests.cpp
 )
 
+# Qt/QPainter-based test — links Qt's WASM platform plugin (libqwasm), which
+# needs embind symbols a plain CLI test target does not provide, and a GUI test
+# has no meaning headless under WASM. Native only.
+if(NOT EMSCRIPTEN)
 add_executable(ved_qt_gengine_outline_tests
     tests/ved_qt_gengine_outline_tests.cpp
 )
+endif()
 
 target_link_libraries(ved_core_line_tests
     PRIVATE
@@ -729,11 +758,14 @@ target_link_libraries(ved_core_export_mapper_tests
         ved_core
 )
 
+
+if(NOT EMSCRIPTEN)
 target_link_libraries(ved_qt_gengine_outline_tests
     PRIVATE
         ved_qt_gengine
         Qt6::Gui
 )
+endif()
 
 add_test(NAME ved_core_line_tests COMMAND ved_core_line_tests)
 add_test(NAME ved_core_model_tests COMMAND ved_core_model_tests)
@@ -763,7 +795,9 @@ add_test(NAME ved_core_document_settings_tests COMMAND ved_core_document_setting
 add_test(NAME ved_core_measure_scale_tests COMMAND ved_core_measure_scale_tests)
 add_test(NAME ved_core_units_tests COMMAND ved_core_units_tests)
 add_test(NAME ved_core_export_mapper_tests COMMAND ved_core_export_mapper_tests)
-add_test(NAME ved_qt_gengine_outline_tests COMMAND ved_qt_gengine_outline_tests)
+if(NOT EMSCRIPTEN)
+    add_test(NAME ved_qt_gengine_outline_tests COMMAND ved_qt_gengine_outline_tests)
+endif()
 
 # These tests read bundled resources / source fonts by project-relative path,
 # so run them from the project root regardless of where the build dir lives.
@@ -793,6 +827,8 @@ foreach(test_src IN LISTS VED_TEST_SOURCES)
         endif()
     endif()
 endforeach()
-set_tests_properties(ved_qt_gengine_outline_tests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-)
+if(NOT EMSCRIPTEN)
+    set_tests_properties(ved_qt_gengine_outline_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+endif()
