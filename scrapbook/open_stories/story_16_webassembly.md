@@ -168,6 +168,55 @@ Browser-Download → nativer Code laeuft ohne Umbau).
 
 ---
 
+## Step 1b: FreeType/HarfBuzz-Versionskonsistenz (native ↔ WASM)
+
+Datum: 2026-07-29
+
+**Problem (entdeckt nach Step 1):** WASM- und native-Build rendern denselben Text
+(z.B. Amiri/Persisch) sichtbar unterschiedlich — bereits im Editor, nicht nur im
+PDF-Export. Ursache: Die Font-Bibliotheken stammen aus verschiedenen Quellen mit
+verschiedenen Versionen.
+
+| Bibliothek | Native (Homebrew) | WASM (Emscripten-Port) |
+|---|---|---|
+| FreeType | 2.14.3 | 2.13.3 |
+| HarfBuzz | **12.3.2** | **3.2.0** |
+
+HarfBuzz 3.2.0 (Emscripten-Port, ~2021) ist gegenueber 12.3.2 (nativ) neun Major-
+Versionen alt → abweichendes Shaping (Buchstabenverbindung/-form), besonders bei
+Arabisch/Persisch. Die FreeType-Differenz erklaert zusaetzliche Outline-Unter-
+schiede (und die stark abweichenden PDF-Groessen: 26 KB nativ vs 194 KB WASM fuer
+dieselbe Datei `Work/Lukas.ved`, Amiri-Text). Nativ (aktuelle Bibliotheken) ist
+das korrektere Ergebnis.
+
+**Ziel:** Identisches Text-Rendering auf allen Plattformen.
+
+### Was
+- FreeType + HarfBuzz **nicht** mehr aus Homebrew (native) bzw. Emscripten-Port
+  (WASM) beziehen, sondern in **einer festen Version fuer alle Plattformen** via
+  **`FetchContent`** aus Source bauen (CMake laedt die Quellen und kompiliert sie
+  fuer das jeweilige Ziel — nativer Compiler bzw. Emscripten).
+- Versionen pinnen: **HarfBuzz 12.x** (aktuelles Shaping, = bisheriges natives
+  Verhalten) + **FreeType 2.14.x**. Als gepinnte Git-Tags/Releases.
+- Abhaengigkeit HarfBuzz ↔ FreeType korrekt aufsetzen (HarfBuzz mit FreeType-
+  Unterstuetzung bauen, richtige Link-Reihenfolge).
+- Den Emscripten-Ports-Zweig (`-sUSE_FREETYPE`/`-sUSE_HARFBUZZ`) aus Step 1
+  ersetzen; den nativen find-/Homebrew-Zweig ebenfalls auf FetchContent umstellen.
+- Als Alternative (Offline-Build) vendored `third_party/` dokumentieren.
+
+### Tests
+- [ ] Nativer Build weiter gruen; alle Tests bestehen.
+- [ ] WASM-Build weiter gruen.
+- [ ] `Work/Lukas.ved`: WASM- und native-PDF sind **deckungsgleich** (Amiri-Text
+      identisch geformt/positioniert), PDF-Groessen vergleichbar.
+- [ ] Stichprobe weiterer Skripte (Latin, Kyrillisch, Griechisch, Hebraeisch,
+      Arabisch/Persisch): WASM-Rendering == natives Rendering.
+
+### Log
+_(nach Umsetzung ausfuellen — Branch `story_16_webassembly_step_2`)_
+
+---
+
 ## Step 2: PrintSupport entkoppeln — Druck ueber PDF-Export
 
 ### Was
@@ -383,9 +432,14 @@ _(nach Umsetzung ausfuellen)_
 ## Reihenfolge
 
 0. **Story 15** (`ved_font_converter`-CLI) — Voraussetzung fuer Step 4.
-1. Step 1 — Toolchain + WASM-Build steht (leeres Fenster laedt).
-2. Step 2 — PrintSupport entkoppeln (Build linkt sauber).
-3. Step 3 — Datei-I/O async (Laden/Speichern im Browser).
+1. Step 1 — Toolchain + WASM-Build steht (leeres Fenster laedt). **✓ erledigt**
+   (auf Qt 6.11.1, mit Asyncify; Zeichnen/Text/Dialoge/Save laufen im Browser).
+1b. Step 1b — FreeType/HarfBuzz-Versionskonsistenz (FetchContent), damit WASM
+   **identisch** zu nativ rendert. **← naechster Schritt** (`step_2`-Branch).
+2. Step 2 — PrintSupport / PDF-Export: unter Qt 6.11 im Browser **bereits
+   funktionsfaehig** (PDF-Export + Druck getestet); ggf. nur noch Feinschliff.
+3. Step 3 — Datei-I/O: Speichern funktioniert unter Qt 6.11 bereits; Oeffnen
+   (Upload) noch verifizieren.
 4. Step 4b/4c — Basis-Bundle (via Story-15-CLI) + Multi-VFN-Provider (Text im Browser).
 5. Step 5 — Settings/Paths.
 6. Step 4d — Lokaler Font-Server (optionaler Komfort, nach dem Durchstich).
