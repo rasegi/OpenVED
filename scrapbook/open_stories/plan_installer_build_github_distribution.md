@@ -274,6 +274,25 @@ create-dmg \
   Payload — für die reine Widgets-App verzichtbar, könnte getrimmt werden;
   Code-Signing (`signtool`); `vcpkg.json` (2d) bewusst zurückgestellt.
 
+**Nachtrag MSI-Oberfläche (2026-07-28):** Das MSI lief zunächst ganz **ohne UI**
+durch — der Benutzer bekam nach der Installation keinerlei Rückmeldung, ob sie
+erfolgreich war. Behoben durch `WixUI_Minimal` (Willkommen → Lizenz → Fortschritt
+→ **Abschluss-Dialog**):
+- Neue Datei `packaging/windows/license.rtf` (MIT + Third-Party-Hinweis), als
+  `WixUILicenseRtf` eingebunden.
+- „**OpenVED jetzt starten**"-Checkbox auf dem Abschluss-Dialog (standardmäßig an).
+- `build-windows.ps1` registriert `WixToolset.UI.wixext/5.0.2` (`wix extension
+  add -g`) und baut mit `-ext WixToolset.UI.wixext -d LicenseRtf=…`.
+- **Erkenntnisse (CI-Iterationen `ci.3` → `ci.4`):**
+  1. `<Publish>` darf **nicht** direkt im `<Package>` stehen (Fehler WIX0005) →
+     gehört in einen `<UI>`-Block (merged mit `WixUI_Minimal`).
+  2. `WixShellExecTarget` mit `[INSTALLFOLDER]…` als **`Property`-Wert** wird
+     nicht zur Laufzeit aufgelöst (Warnung WIX1077, statischer Wert).
+  → Statt `WixShellExec` (Util-Extension + geratenes `BinaryRef`) eine
+  **`Directory`/`ExeCommand`-CustomAction** (`Return="asyncNoWait"`,
+  `Impersonate="yes"`): braucht keine Util-Extension, kein `BinaryRef`, und
+  expandiert `[INSTALLFOLDER]OpenVED.exe` korrekt zur Laufzeit.
+
 Der ursprünglich geplante Skelett-Code unten diente als Ausgangspunkt.
 
 ### 2b: Windows — `scripts/build-windows.ps1`
@@ -367,8 +386,10 @@ Urspruenglicher Entwurf (mit `qtbase` — verworfen, s.o.):
 
 ## Step 3: GitHub Actions Workflow
 
-**Neue Datei: `.github/workflows/release.yml`** — **umgesetzt am 2026-07-22**
-(YAML validiert; **CI-Lauf ausstehend** — nur auf GitHub testbar):
+**Neue Datei: `.github/workflows/release.yml`** — **umgesetzt am 2026-07-22,
+CI-Lauf gruen am 2026-07-22** (Tag `v0.1.0-ci.2`): `build-macos` + `build-windows`
+erfolgreich, `release`-Job hat DMG **und** MSI als GitHub-(Pre-)Release
+veroeffentlicht (`OpenVED-0.1.0-macOS-arm64.dmg`, `OpenVED-0.1.0-x64.msi`).
 - 3 Jobs: `build-macos` (macos-14), `build-windows` (windows-latest),
   `release` (ubuntu, `needs` beide, nur bei Tag `v*`).
 - **Strategie: CI ruft die getesteten lokalen Skripte auf** (statt Build-Logik
@@ -387,6 +408,20 @@ Urspruenglicher Entwurf (mit `qtbase` — verworfen, s.o.):
 - **Hinweis:** Erster CI-Lauf braucht erfahrungsgemaess ein paar Runden
   (VS-Pfad, Qt-arch-String, vcpkg/WiX in der CI-Umgebung) — normale Anlauf-
   Reibung, kein Homebrew-Kaninchenbau.
+
+**CI-Lauf-Log (Iterationen bis gruen):**
+- `v0.1.0-ci.1`: beide Jobs rot. **macOS:** GitHub-Runner hat **Mono
+  vorinstalliert**, dessen `/Library/Frameworks/Mono.framework/Headers/ft2build.h`
+  kaperte den FreeType-Include (macOS sucht Frameworks per Default zuerst) →
+  Fix `-DCMAKE_FIND_FRAMEWORK=LAST` in `build-macos.sh`. **Windows:** vcpkgs
+  `z-applocal`-Post-Build-Schritt lief pro Test-Exe parallel und kollidierte um
+  dieselben Dateien („cannot access the file … used by another process") →
+  Fix `-DVCPKG_APPLOCAL_DEPS=OFF` + `<Qt>\bin` auf PATH fuer ctest in
+  `build-windows.ps1` (statisches Triplet hat ohnehin keine DLLs zu deployen;
+  finale App-DLLs kommen weiter via windeployqt).
+- `v0.1.0-ci.2`: **gruen** → erstes automatisches Release mit DMG + MSI.
+- Erkenntnis: Der lokal muehsam debuggte Homebrew-`macdeployqt`-Fixup war in der
+  CI kein Thema; die CI-Reibung waren zwei andere, schnell behebbare Punkte.
 
 Trigger: Tag-Push `v*` (z.B. `v0.1.0`)
 
