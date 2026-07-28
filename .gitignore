@@ -24,3 +24,6 @@ compile_commands.json
 /Testing/Temporary/CTestCostData.txt
 /Testing/Temporary/LastTest.log
 /Error-Images/
+
+# WASM / aqtinstall toolchain log (created in the project dir by aqt)
+aqtinstall.log
