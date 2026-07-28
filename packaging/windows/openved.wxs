@@ -9,7 +9,7 @@
 
   Build (see scripts/build-windows.ps1):
     wix build packaging\windows\openved.wxs -arch x64 ^
-      -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext ^
+      -ext WixToolset.UI.wixext ^
       -d Version=0.1.0 ^
       -d StagingDir=<abs path to staging> ^
       -d IconFile=<abs path to openved.ico> ^
@@ -58,14 +58,23 @@
         <!-- "Launch OpenVED" checkbox on the final dialog (checked by default). -->
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="OpenVED jetzt starten" />
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-        <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]OpenVED.exe" />
+
+        <!-- Launch the app when the box stays checked. A Directory/ExeCommand
+             custom action needs no extra extension, expands [INSTALLFOLDER] at
+             runtime, and runs as the installing user (Impersonate); asyncNoWait
+             lets the installer exit immediately. -->
         <CustomAction Id="LaunchApplication"
-                      BinaryRef="Wix4UtilCA_X64"
-                      DllEntry="WixShellExec"
+                      Directory="INSTALLFOLDER"
+                      ExeCommand="[INSTALLFOLDER]OpenVED.exe"
+                      Return="asyncNoWait"
                       Impersonate="yes" />
-        <ui:Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
-                    Value="LaunchApplication"
-                    Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+
+        <!-- Publish must live inside a <UI> block; it merges with WixUI_Minimal. -->
+        <UI>
+            <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
+                     Value="LaunchApplication"
+                     Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+        </UI>
     </Package>
 
     <!-- Application payload, harvested recursively from the staging directory.
