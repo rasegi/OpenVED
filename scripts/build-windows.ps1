@@ -173,13 +173,25 @@ if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
     }
 }
 
-$IconFile = Join-Path $ProjectRoot "packaging\icons\openved.ico"
-$MsiPath  = Join-Path $BuildDir "OpenVED-$Version-x64.msi"
+# The installer UI (welcome/license/exit dialog) needs the UI extension; the
+# "Launch OpenVED" checkbox action needs the Util extension. Pin them to the
+# same version as WiX itself. 'wix extension add -g' is idempotent.
+foreach ($ext in @("WixToolset.UI.wixext", "WixToolset.Util.wixext")) {
+    Write-Host "    ensuring WiX extension $ext/$WixVersion"
+    wix extension add -g "$ext/$WixVersion" | Out-Null
+}
+
+$IconFile   = Join-Path $ProjectRoot "packaging\icons\openved.ico"
+$LicenseRtf = Join-Path $ProjectRoot "packaging\windows\license.rtf"
+$MsiPath    = Join-Path $BuildDir "OpenVED-$Version-x64.msi"
 wix build (Join-Path $ProjectRoot "packaging\windows\openved.wxs") `
     -arch x64 `
+    -ext WixToolset.UI.wixext `
+    -ext WixToolset.Util.wixext `
     -d "Version=$Version" `
     -d "StagingDir=$StagingDir" `
     -d "IconFile=$IconFile" `
+    -d "LicenseRtf=$LicenseRtf" `
     -o $MsiPath
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed" }
 

@@ -9,12 +9,15 @@
 
   Build (see scripts/build-windows.ps1):
     wix build packaging\windows\openved.wxs -arch x64 ^
+      -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext ^
       -d Version=0.1.0 ^
       -d StagingDir=<abs path to staging> ^
       -d IconFile=<abs path to openved.ico> ^
+      -d LicenseRtf=<abs path to license.rtf> ^
       -o <out>\OpenVED-0.1.0-x64.msi
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
     <Package Name="OpenVED"
              Manufacturer="Lukas Rasegi"
              Version="$(Version)"
@@ -45,6 +48,24 @@
             <ComponentGroupRef Id="AppFiles" />
             <ComponentRef Id="AppShortcut" />
         </Feature>
+
+        <!-- Installer UI: welcome -> license -> progress -> completed dialog.
+             Without this the MSI runs with only a progress bar and no final
+             confirmation, so the user never sees that it succeeded. -->
+        <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
+        <ui:WixUI Id="WixUI_Minimal" />
+
+        <!-- "Launch OpenVED" checkbox on the final dialog (checked by default). -->
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="OpenVED jetzt starten" />
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+        <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]OpenVED.exe" />
+        <CustomAction Id="LaunchApplication"
+                      BinaryRef="Wix4UtilCA_X64"
+                      DllEntry="WixShellExec"
+                      Impersonate="yes" />
+        <ui:Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
+                    Value="LaunchApplication"
+                    Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
     </Package>
 
     <!-- Application payload, harvested recursively from the staging directory.
