@@ -105,14 +105,66 @@ statisch gehostetes Web-Bundle (GitHub Pages) ueber die bestehende CI-Pipeline.
   `.wasm`, `qtloader.js`.
 
 ### Tests
-- [ ] `ved_core` kompiliert vollstaendig unter Emscripten (Bibliotheks-Target).
-- [ ] `ved_qt_app` linkt zu einem `.wasm` + `.html`-Bundle.
-- [ ] Bundle laedt in Chrome und Firefox, MainWindow erscheint, leeres Blatt
-      sichtbar.
-- [ ] Native Desktop-Builds (macOS/Windows) bauen unveraendert weiter.
+- [x] `ved_core` kompiliert vollstaendig unter Emscripten (Bibliotheks-Target).
+- [x] `ved_qt_app` linkt zu einem `.wasm` + `.html`-Bundle.
+- [x] Bundle laedt (in **Chrome** bestaetigt), MainWindow erscheint, Zeichnen +
+      Text funktionieren. (Firefox noch nicht separat geprueft.)
+- [x] Native Desktop-Builds: CMake-Aenderungen sind alle `EMSCRIPTEN`-gegated;
+      nativer Configure verifiziert gruen (voller nativer Rebuild noch offen).
 
 ### Log
-_(nach Umsetzung ausfuellen)_
+
+**umgesetzt am 2026-07-28/29** (Branch `story_16_webassembly_step_1`):
+
+**Toolchain — mit Upgrade auf Qt 6.11.**
+- Start mit **Qt 6.9.3 wasm_singlethread** + **Emscripten 3.1.70** (per Qt-Doku
+  gekoppelt), Host-Qt = Homebrew `qtbase 6.9.3` (`QT_HOST_PATH`), installiert via
+  `emsdk` + `aqtinstall` (in venv `~/.aqt-venv`, wegen PEP-668).
+- **Upgrade auf Qt 6.11.1** (Grund: Combobox-Bug unten): **Emscripten 4.0.7** +
+  Qt **6.11.1 wasm_singlethread** + Qt **6.11.1 Desktop (clang_64)** als Host-Qt
+  (Homebrew 6.9.3 passt als Host nicht mehr zur 6.11-Target-Version). Damit
+  weicht die Story von der urspruenglichen Annahme "Qt 6.8 LTS" ab — bewusst
+  auf **6.11.1**.
+- WASM-Configure:
+  `-DCMAKE_TOOLCHAIN_FILE=~/Qt/6.11.1/wasm_singlethread/lib/cmake/Qt6/qt.toolchain.cmake`
+  `-DQT_HOST_PATH=~/Qt/6.11.1/macos`. (Pfade aktuell nur manuell — ein
+  `scripts/build-wasm.sh` folgt in Step 6.)
+
+**CMake-Anpassungen (`CMakeLists.txt`, alle `EMSCRIPTEN`-gegated):**
+- FreeType/HarfBuzz unter Emscripten ueber die **Ports** (`-sUSE_FREETYPE=1`,
+  `-sUSE_HARFBUZZ=1` als compile+link options); native find-/vendor-Logik bleibt
+  unberuehrt. `ved_core` nutzt FreeType/HarfBuzz direkt — die Ports liefern
+  Header + Libs.
+- `ved_qt_gengine_outline_tests` (Qt/QPainter-Test) unter WASM ausgeschlossen:
+  linkt `libqwasm` (embind-Symbole, die ein CLI-Test nicht bereitstellt) und ist
+  headless sinnlos. Die uebrigen `ved_core_*`-Tests bauen als `.wasm`.
+- **Asyncify** fuers App-Target: `-sASYNCIFY -sASYNCIFY_STACK_SIZE=131072`.
+  Noetig, weil modale Dialoge (`QDialog`/`QMessageBox::exec()`) eine
+  verschachtelte Event-Loop nutzen, die in single-threaded WASM ohne Asyncify
+  nicht laeuft → Dialoge erschienen leer und liessen sich nicht wegklicken.
+  Binary dadurch ~17 MB → ~25 MB. (Multithread-WASM bleibt Nicht-Ziel.)
+
+**Combobox-in-Dialog-Bug → Grund fuers 6.11-Upgrade:**
+- Unter **Qt 6.9.3** (auch mit Asyncify): Comboboxen in Dialogen (New-Dialog:
+  Unit/Format/Orientation) oeffneten das Popup, aber **Maus-Auswahl** ging nicht
+  — nur **Tastatur**. Im Hauptfenster funktionierten Comboboxen normal. Bekannter,
+  ungeloester Qt-WASM-Bug (Popup-Maus-Routing ueber Dialogen; Wurzel:
+  `QDialog::exec()` in WASM, QTBUG-90989; Qt-Forum-Thread 161427).
+- **Unter Qt 6.11.1 behoben** — Maus-Auswahl in Dialog-Comboboxen funktioniert.
+
+**Funktioniert im Browser (Qt 6.11.1, vom User abgenommen):**
+Laden, Zeichnen, Text schreiben, modale Dialoge (Inhalt sichtbar + bedienbar),
+**Speichern** (Qt-6.11-WASM mappt `QFileDialog::getSaveFileName` intern auf einen
+Browser-Download → nativer Code laeuft ohne Umbau).
+
+**Noch offen / fuer Folge-Steps:**
+- PDF-Export und Print im Browser pruefen (Step 2) — evtl. durch Qt 6.11 schon
+  teilweise gedeckt.
+- Öffnen (Upload) verifizieren (Step 3).
+- Reproduzierbares `scripts/build-wasm.sh` (Step 6).
+- Voller nativer Rebuild + Abnahme (Regression durch CMake-Aenderungen
+  ausschliessen).
+- Firefox-Test.
 
 ---
 
