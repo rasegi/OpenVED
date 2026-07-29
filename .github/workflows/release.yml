@@ -170,8 +170,8 @@ jobs:
 
       - name: Build WASM bundle
         run: |
-          export QT_WASM="${{ github.workspace }}/qt/6.11.1/wasm_singlethread"
-          export QT_HOST="${{ github.workspace }}/qt/6.11.1/gcc_64"
+          export QT_WASM="${{ github.workspace }}/qt/Qt/6.11.1/wasm_singlethread"
+          export QT_HOST="${{ github.workspace }}/qt/Qt/6.11.1/gcc_64"
           ./scripts/build-wasm.sh
 
       - name: Upload Pages artifact
