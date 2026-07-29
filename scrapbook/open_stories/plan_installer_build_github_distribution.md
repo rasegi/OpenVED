@@ -454,6 +454,43 @@ Trigger: Tag-Push `v*` (z.B. `v0.1.0`)
 
 ---
 
+## Step 7: Linux-Distribution (AppImage)
+
+**umgesetzt am 2026-07-29** (Branch `plan_installer_linux_appimage`) —
+**CI-Lauf ausstehend** (nur auf GitHub/Linux testbar; YAML validiert):
+
+Vierter Distributionspfad neben DMG/MSI/WASM: ein **self-contained AppImage**,
+das auf jeder Linux-Distro laeuft (eine Datei, kein Paketmanager, kein root) —
+das Linux-Gegenstueck zum self-contained DMG.
+
+### Was umgesetzt
+- `packaging/linux/openved.desktop` — Desktop-Eintrag (Menue-/Icon-Zuordnung).
+- `CMakeLists.txt`: Linux-`install()`-Regeln (`.desktop` → `share/applications`,
+  Icon → `share/icons/hicolor/256x256/apps`), gegated
+  `if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)`.
+- `.github/workflows/release.yml`: neuer Job **`build-linux`** (ubuntu-22.04 fuer
+  breitere glibc-Kompatibilitaet): offizielles Qt (install-qt-action, linux
+  gcc_64) → Build (FreeType/HarfBuzz via FetchContent) → `cmake --install` in
+  AppDir → **linuxdeploy + linuxdeploy-plugin-qt** buendeln Qt → AppImage.
+  `release`-Job um `build-linux` (`needs`) + AppImage-Asset ergaenzt.
+- Qt wird **mitgebuendelt** (self-contained wie DMG/MSI), nicht als System-
+  Abhaengigkeit → distro-unabhaengig.
+
+### Offen / Erwartung
+- **Linux-Build wurde bisher nie gebaut** (nur macOS/Windows/WASM) — der erste
+  CI-Lauf zeigt evtl. Linux-spezifische Build-/Deploy-Fehler (xcb/gl-Libs,
+  Plugin-Buendelung). Normale Anlauf-Reibung, via CI zu iterieren.
+- **DEB + RPM** (native Distro-Pakete) spaeter als optionale Ergaenzung — via
+  CPack, idealerweise in Fedora-/Ubuntu-Containern gebaut (Qt als System-Dep
+  oder gebuendelt).
+
+### Tests
+- [ ] `build-linux` erzeugt ein AppImage.
+- [ ] AppImage startet auf einer Linux-Distro (Fenster erscheint, Zeichnen geht).
+- [ ] Release-Job haengt das AppImage als Release-Asset an.
+
+---
+
 ## Step 5: WebAssembly Web-Distribution
 
 Dritter Distributionspfad neben DMG/MSI: OpenVED als statisch gehostetes

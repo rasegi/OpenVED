@@ -455,6 +455,15 @@ install(TARGETS ved_qt_app
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+# Linux desktop integration — .desktop entry + icon. Consumed by the AppImage
+# packaging (and later DEB/RPM). Harmless on other platforms (guarded).
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+    install(FILES packaging/linux/openved.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES src/app/resources/openved.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+endif()
+
 function(ved_copy_qt_runtime target)
     if(WIN32 AND TARGET Qt6::Core AND TARGET Qt6::QWindowsIntegrationPlugin)
         get_target_property(VED_QT_CORE_DLL Qt6::Core IMPORTED_LOCATION_DEBUG)
