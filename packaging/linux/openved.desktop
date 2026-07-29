@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenVED
+GenericName=Vector Editor
+Comment=2D vector geometry editor
+Exec=OpenVED
+Icon=openved
+Terminal=false
+Categories=Graphics;VectorGraphics;2DGraphics;
+Keywords=vector;drawing;cad;geometry;
