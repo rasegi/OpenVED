@@ -136,6 +136,66 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # WebAssembly: build the browser bundle and publish it to GitHub Pages.
+  # WASM needs Qt 6.11 (+ Emscripten 4.0.7) — see story_16 (Combobox fix).
+  build-wasm:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Emscripten 4.0.7 (matches Qt 6.11)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.7
+
+      - name: Install Qt for WebAssembly
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.11.1"
+          host: all_os
+          target: wasm
+          arch: wasm_singlethread
+          dir: ${{ github.workspace }}/qt
+          cache: true
+
+      - name: Install host Qt (moc/rcc, must match the wasm version)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.11.1"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ github.workspace }}/qt
+          cache: true
+
+      - name: Build WASM bundle
+        run: |
+          export QT_WASM="${{ github.workspace }}/qt/6.11.1/wasm_singlethread"
+          export QT_HOST="${{ github.workspace }}/qt/6.11.1/gcc_64"
+          ./scripts/build-wasm.sh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/wasm/dist
+
+  # Publish the WASM bundle to GitHub Pages (needs Pages enabled in repo settings:
+  # Settings → Pages → Source: "GitHub Actions").
+  deploy-pages:
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ---------------------------------------------------------------------------
   # Only on a version tag: gather all installers into a GitHub Release.
   release:
     needs: [build-macos, build-windows, build-linux]
