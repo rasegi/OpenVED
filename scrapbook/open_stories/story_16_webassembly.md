@@ -3,10 +3,11 @@
 Datum: 2026-07-20
 Status: offen
 
-**Abhaengigkeit:** Diese Story setzt `story_15_font_converter_tool.md` voraus —
-das dort definierte `ved_font_converter`-CLI erzeugt die `.vfn`-Fonts fuer das
-WASM-Basis-Bundle (Step 4). Story 15 wird vor dem Font-Teil dieser Story
-umgesetzt.
+**Zu Story 15:** `story_15_font_converter_tool.md` (`ved_font_converter`-CLI) ist
+seit der Font-Strategie-Aenderung in Step 4 **keine Voraussetzung** mehr — das
+WASM-Basis-Bundle liefert rohe TTF und wandelt sie **zur Laufzeit** nach Vec-Font.
+Story 15 bleibt als eigenstaendiges Tool und fuer den optionalen Font-Server
+(Step 4b) relevant.
 
 ## Kontext
 
@@ -73,9 +74,9 @@ statisch gehostetes Web-Bundle (GitHub Pages) ueber die bestehende CI-Pipeline.
    die async-APIs `QFileDialog::getOpenFileContent()` / `saveFileContent()`
    umgestellt werden.
 3. **Fonts** (`QtVecFontProviders.cpp`) — Systemfont-Scan (`C:/Windows/Fonts`,
-   `~/Library/Fonts`, `QStandardPaths::FontsLocation`, `:106-122`) ist im Browser
-   wirkungslos. Loesung: mitgeliefertes `.vfn`-Basis-Bundle + optionaler lokaler
-   Font-Server (siehe Step 4).
+   `~/Library/Fonts`, `QStandardPaths::FontsLocation`) ist im Browser wirkungslos.
+   Loesung: mitgeliefertes **TTF-Basis-Bundle** (zur Laufzeit nach Vec-Font
+   gewandelt) + optionaler lokaler Font-Server (siehe Step 4).
 4. **`QSettings` / `QStandardPaths`** (`MainWindow.cpp`) — laeuft in Qt-WASM ueber
    IndexedDB (async/verzoegerte Persistenz). Meist unkritisch, "zuletzt geoeffnet"
    ggf. anpassen.
@@ -287,69 +288,62 @@ _(nach Umsetzung ausfuellen)_
 
 ---
 
-## Step 4: Font-Strategie fuer WASM (und wiederverwendbar)
+## Step 4: Font-Strategie fuer WASM — TTF-Bundle + Laufzeit-Konvertierung
 
 Browser haben keinen Zugriff auf die rohen TTF-Bytes installierter Systemfonts
 (Canvas/CSS liefert nur gerenderte Pixel, nicht die Outlines, die OpenVED fuer
-Text→Kurven braucht). Die Local Font Access API ist wegen ihrer
-Einschraenkungen verworfen. Stattdessen zwei Wege — ein **immer verfuegbares
-Basis-Bundle** plus ein **optionaler lokaler Font-Server**.
+Text→Kurven braucht). Die Local Font Access API ist wegen ihrer Einschraenkungen
+verworfen. Stattdessen zwei Wege — ein **immer verfuegbares Basis-Bundle** plus
+ein **optionaler lokaler Font-Server**.
 
-### 4a: TTF→VFN-Konverter (Story 15)
+**Strategie-Aenderung (2026-07-29):** Das Basis-Bundle wird als Satz **roher TTF**
+mitgeliefert und **zur Laufzeit** nach Vec-Font gewandelt (FreeType/HarfBuzz +
+`ttf_to_vecfont`) — **nicht** mehr als vorab konvertierte `.vfn` eingecheckt. Das
+ist verlaesslich moeglich, weil FreeType/HarfBuzz seit **Step 1b** in **jedem**
+Build (nativ + WASM) via FetchContent in **derselben** Version fest eingebaut sind
+→ die Laufzeit-Konvertierung liefert auf allen Plattformen identische Outlines.
+Damit entfaellt ein Vorab-Konvertierungsschritt und das Einchecken von `.vfn`;
+Story 15 (`ved_font_converter`-CLI) ist fuer dieses Bundle **keine Voraussetzung**
+mehr. `wps_default.vfn` bleibt als Default-Font im VFN-Format bestehen.
 
-Das Konverter-CLI `ved_font_converter` wird in **`story_15_font_converter_tool.md`**
-definiert und umgesetzt (Entkopplung der Konvertierungslogik aus
-`QtVecFontProviders.cpp`, VFN-Schreibpfad, CLI). Diese Story konsumiert nur das
-fertige Tool und dessen `.vfn`-Ausgabe — hier wird nichts am Konverter selbst
-mehr entwickelt.
+**Bereits im Code vorhanden (mit Step 1b eingezogen):**
+- `CMakeLists.txt:355-357` bettet `resources/font/*.ttf` **und** `*.vfn` als
+  Qt-Ressource unter `:/ved/font` ein — die TTFs (Amiri, Liberation Sans/Serif/
+  Mono, Noto Sans, Noto Sans Hebrew) liegen bereits gebuendelt vor.
+- `TDQtSystemFontProvider` (`QtVecFontProviders.cpp:250-268`) indiziert die
+  gebuendelten TTFs unter `:/ved/font` **immer** (unabhaengig vom optionalen
+  System-Scan) und wandelt sie zur Laufzeit — der Multi-Font-Provider existiert
+  damit bereits; ein separater "Multi-VFN Builtin-Provider" entfaellt.
+- `TDBuiltinVfnFontProvider` (`MainWindowTextDock.cpp:623`) bleibt fuer
+  `wps_default.vfn` (Default-Font).
 
-### 4b: Basis-Font-Bundle im `.vfn`-Format anlegen
-
-**Was:**
-- Mit dem Konverter aus Story 15 ein Set **frei lizenzierter** Fonts nach `.vfn`
-  wandeln — Liberation-Familie (metrik-kompatibler, freier Ersatz fuer die
-  proprietaeren MS-Kernschriften Arial/Times New Roman/Courier New), optional
-  DejaVu Sans fuer breitere Unicode-Abdeckung.
-- In Projektstruktur ablegen und als Qt-Ressource einbinden:
-  ```
-  src/app/resources/font/
-    wps_default.vfn              (bereits vorhanden)
-    liberation_sans.vfn         (Ersatz Arial)
-    liberation_sans_bold.vfn
-    liberation_serif.vfn        (Ersatz Times New Roman)
-    liberation_mono.vfn         (Ersatz Courier New)
-    dejavu_sans.vfn             (optional, Unicode-Breite)
-  ```
-- `.qrc`-Eintraege ergaenzen. Bundle ist damit in **jedem** Build (nativ + WASM)
-  eingebettet und deterministisch verfuegbar.
-- Lizenz-Compliance laeuft zentral ueber `licenses/` + `THIRD_PARTY_LICENSES.md`
-  (siehe `plan_installer_...` Step 6), nicht ueber eine separate Font-Datei.
-
-**Tests:**
-- [ ] Alle gebuendelten `.vfn` laden im nativen Build ueber den Builtin-Provider.
-- [ ] Im WASM-Build steht die Basis-Auswahl ohne Netzwerk/Server zur Verfuegung.
-
-### 4c: Multi-VFN Builtin-Provider
+### 4a: Basis-Bundle finalisieren
 
 **Was:**
-- `TDBuiltinVfnFontProvider` von "nur `wps_default`" auf eine registrierte Liste
-  gebuendelter `.vfn` erweitern (Font-ID/DisplayName/Resource-Pfad je Eintrag).
-- `MainWindowTextDock.cpp:609` (Provider-Registrierung) entsprechend anpassen.
-- Font-Auswahl-UI zeigt die gebuendelten Fonts.
+- Font-Auswahl fuers Bundle festzurren (**frei lizenziert**): Liberation-Familie
+  (metrik-kompatibler Ersatz fuer Arial/Times New Roman/Courier New), Amiri
+  (Arabisch/Persisch), Noto Sans + Noto Sans Hebrew (Unicode-Breite). Ggf. Bold-/
+  Kursiv-Schnitte ergaenzen.
+- Bundle-Groesse im Blick behalten (zaehlt zum WASM-Download).
+- Lizenz-Compliance zentral ueber `licenses/` + `THIRD_PARTY_LICENSES.md`
+  (siehe `plan_installer_...` Step 6).
 
 **Tests:**
-- [ ] Font-Auswahl listet alle gebuendelten Fonts, jeder ist auswaehlbar und
-      wird korrekt gezeichnet.
+- [ ] Alle gebuendelten TTF laden im **nativen** Build und werden korrekt gezeichnet.
+- [x] Im **WASM**-Build steht dieselbe Auswahl ohne Netzwerk/Server zur Verfuegung
+      (vom User geprueft; Rendering-Identitaet zu nativ bisher fuer Amiri via
+      Step 1b bestaetigt, restliche Fonts als Stichprobe offen).
+- [x] Font-Auswahl-UI listet alle gebuendelten Fonts (vom User im WASM-Build
+      bestaetigt); Auswaehlbarkeit/korrektes Zeichnen je Font als Stichprobe offen.
 
-### 4d: Lokaler Font-Server (optional, Systemfonts im Browser)
+### 4b: Lokaler Font-Server (optional, Systemfonts im Browser)
 
 **Was:**
 - Kleine lokale Server-App (z.B. Python/FastAPI), die auf einem festen
   localhost-Port eine REST-API bereitstellt:
   - `GET /fonts` → Liste verfuegbarer Systemfonts (ID, Name, Style).
-  - `GET /font/{id}` → rohe TTF/OTF-Bytes **oder** direkt konvertierte
-    `.vfn`-Bytes (serverseitige Konvertierung wiederverwendet den Konverter aus
-    4a).
+  - `GET /font/{id}` → rohe TTF/OTF-Bytes; der Client wandelt zur Laufzeit
+    (wie beim Basis-Bundle) — keine serverseitige VFN-Konvertierung noetig.
 - Neuer `IVecFontProvider` in der App: `TDLocalServerFontProvider`, der beim
   Start `GET /fonts` probiert (kurzer Timeout). Erreichbar → Systemfonts werden
   gelistet und lazy per `GET /font/{id}` geladen; nicht erreichbar → still
@@ -364,8 +358,8 @@ mehr entwickelt.
   `http://localhost` ausgeliefert (der Server hostet auch die App), ODER
   Server-Nutzung nur im lokalen/gepackten Kontext.
 - **CORS:** Server muss die Origin der WASM-App per CORS-Header erlauben.
-- Serverseitig: Konverter aus 4a wiederverwenden, damit der Browser nur `.vfn`
-  liest und kein TTF/FreeType zur Laufzeit braucht.
+- Serverseitig genuegt das Ausliefern roher TTF/OTF — die Konvertierung nach
+  Vec-Font passiert im Client (FreeType/HarfBuzz sind im WASM-Build vorhanden).
 
 **Tests:**
 - [ ] Bei laufendem Server erscheinen Systemfonts in der Auswahl und werden
@@ -375,7 +369,21 @@ mehr entwickelt.
 - [ ] Mixed-Content-/CORS-Verhalten ist dokumentiert und reproduzierbar.
 
 ### Log
-_(nach Umsetzung ausfuellen)_
+
+**Strategie-Aenderung + Teil-Abnahme am 2026-07-29:**
+- Font-Strategie umgestellt: **TTF-Bundle + Laufzeit-Konvertierung** statt Vorab-
+  `.vfn` (Details oben im Step-Kopf). Der tragende Mechanismus wurde faktisch
+  schon mit **Step 1b** eingezogen (TTF-Ressourcen unter `:/ved/font` +
+  `TDQtSystemFontProvider` indiziert/wandelt zur Laufzeit).
+- **Vom User geprueft (WASM):** Die Font-Auswahl im Browser zeigt genau das
+  gebuendelte Set (Amiri, Liberation Sans/Serif/Mono, Noto Sans, Noto Sans
+  Hebrew) — ohne Netzwerk/Server. Damit ist der Kern von **4a** im WASM-Build
+  bestaetigt.
+- **Offen:** nativer Build als Gegenprobe (Test 1); Rendering-Stichprobe je Font
+  (Latin/Kyrillisch/Griechisch/Hebraeisch/Arabisch — bisher nur Amiri via 1b);
+  finales Festzurren der Font-Auswahl inkl. evtl. Bold-/Kursiv-Schnitte und
+  Lizenz-Eintraege (`THIRD_PARTY_LICENSES.md`).
+- **4b (Font-Server):** noch nicht begonnen (optional, nach dem Durchstich).
 
 ---
 
@@ -445,14 +453,16 @@ _(nach Umsetzung ausfuellen)_
   Round-Trip-Treue zur nativen Datei.
 - PDF-Export im Browser erzeugt korrekte, downloadbare PDF; kein `PrintSupport`
   im WASM-Link.
-- Basis-Font-Bundle (`.vfn`) ist eingebettet und ohne Netzwerk verfuegbar.
+- TTF-Basis-Bundle ist eingebettet, wird zur Laufzeit nach Vec-Font gewandelt und
+  ist ohne Netzwerk verfuegbar (nativ + WASM identisches Rendering).
 - Optionaler lokaler Font-Server liefert bei Verfuegbarkeit Systemfonts; Abwesen-
   heit blockiert den Start nicht.
 - CI veroeffentlicht das WASM-Bundle auf GitHub Pages.
 
 ## Reihenfolge
 
-0. **Story 15** (`ved_font_converter`-CLI) — Voraussetzung fuer Step 4.
+0. **Story 15** (`ved_font_converter`-CLI) — **nicht mehr** Voraussetzung fuer
+   Step 4 (Bundle wird zur Laufzeit gewandelt); eigenstaendig / fuer Font-Server.
 1. Step 1 — Toolchain + WASM-Build steht (leeres Fenster laedt). **✓ erledigt**
    (auf Qt 6.11.1, mit Asyncify; Zeichnen/Text/Dialoge/Save laufen im Browser).
 1b. Step 1b — FreeType/HarfBuzz-Versionskonsistenz (FetchContent), damit WASM
@@ -461,15 +471,17 @@ _(nach Umsetzung ausfuellen)_
    funktionsfaehig** (PDF-Export + Druck getestet); ggf. nur noch Feinschliff.
 3. Step 3 — Datei-I/O: Speichern funktioniert unter Qt 6.11 bereits; Oeffnen
    (Upload) noch verifizieren.
-4. Step 4b/4c — Basis-Bundle (via Story-15-CLI) + Multi-VFN-Provider (Text im Browser).
+4. Step 4a — TTF-Basis-Bundle finalisieren (Provider-Mechanismus liegt aus Step 1b
+   bereits vor; Konvertierung zur Laufzeit).
 5. Step 5 — Settings/Paths.
 6. Step 4d — Lokaler Font-Server (optionaler Komfort, nach dem Durchstich).
 7. Step 6 — CI/GitHub-Pages-Deployment.
 
 ## Bezug zu bestehenden Stories/Plaenen
 
-- **`story_15_font_converter_tool.md`** — **Voraussetzung**; liefert das
-  `ved_font_converter`-CLI und die konvertierten `.vfn`-Fonts fuer Step 4.
+- **`story_15_font_converter_tool.md`** — eigenstaendiges CLI; seit der
+  Strategie-Aenderung in Step 4 **keine Voraussetzung** mehr (Bundle wird zur
+  Laufzeit gewandelt), bleibt fuer den optionalen Font-Server (Step 4b) relevant.
 - `plan_installer_build_github_distribution.md` — wird um "Step 5: WebAssembly"
   (build-wasm-Skript + Pages-Job) ergaenzt; dessen WASM-Teil ist von dieser
   Story 16 abhaengig.
