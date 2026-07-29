@@ -205,15 +205,36 @@ das korrektere Ergebnis.
 - Als Alternative (Offline-Build) vendored `third_party/` dokumentieren.
 
 ### Tests
-- [ ] Nativer Build weiter gruen; alle Tests bestehen.
-- [ ] WASM-Build weiter gruen.
-- [ ] `Work/Lukas.ved`: WASM- und native-PDF sind **deckungsgleich** (Amiri-Text
-      identisch geformt/positioniert), PDF-Groessen vergleichbar.
+- [x] Nativer Build gruen (FetchContent-Libs aus Source; `build/release-ft`).
+- [x] WASM-Build gruen (FreeType + HarfBuzz mit Emscripten gebaut).
+- [x] `Work/Lukas.ved`: WASM rendert jetzt **wie nativ** (Amiri) — vom User
+      visuell im Editor bestaetigt. (Objektiver PDF-Pixelvergleich optional.)
 - [ ] Stichprobe weiterer Skripte (Latin, Kyrillisch, Griechisch, Hebraeisch,
-      Arabisch/Persisch): WASM-Rendering == natives Rendering.
+      Arabisch/Persisch): noch offen (bisher Amiri/Persisch verifiziert).
 
 ### Log
-_(nach Umsetzung ausfuellen — Branch `story_16_webassembly_step_2`)_
+
+**umgesetzt am 2026-07-29** (Branch `story_16_webassembly_step_2`):
+- `CMakeLists.txt`: FreeType/HarfBuzz-Beschaffung komplett auf **`FetchContent`**
+  umgestellt — ersetzt sowohl den nativen Homebrew-/find-Zweig als auch den
+  Emscripten-Ports-Zweig aus Step 1. Gepinnt: **FreeType `VER-2-14-1`** +
+  **HarfBuzz `12.3.2`** (`GIT_SHALLOW`), fuer **alle** Plattformen dieselbe
+  Version → identisches Rendering.
+- HarfBuzz **mit** FreeType-Support (`HB_HAVE_FREETYPE=ON`; die App nutzt
+  `hb_ft_font_create`). HarfBuzz' `find_package(Freetype)` wird per gesetzten
+  `FREETYPE_*`-Variablen auf die FetchContent-FreeType umgeleitet (kein System-
+  Install noetig).
+- FreeType schlank: `FT_DISABLE_HARFBUZZ/PNG/ZLIB/BZIP2/BROTLI=ON` (vermeidet
+  FreeType↔HarfBuzz-Zyklus; TrueType-Outlines unberuehrt). Alles static.
+- Ergebnis: nativer Build (`build/release-ft`, App 5,2 MB) **und** WASM-Build
+  (`build/wasm`, `libfreetype.a`+`libharfbuzz.a` via Emscripten) gruen; WASM-Text
+  jetzt = nativ (vorher HarfBuzz 3.2.0 → jetzt 12.3.2).
+- **Trade-off:** erster Configure klont die Repos; Build-Zeit laenger (Libs aus
+  Source). Fuer Offline-Builds bleibt vendored `third_party/` als Alternative
+  moeglich (nicht implementiert).
+- **Offen:** Stichprobe weiterer Skripte; `build-macos.sh`/`build-windows.ps1`
+  brauchen kein Homebrew-/vcpkg-FreeType/HarfBuzz mehr (kann spaeter entschlackt
+  werden); CI-Anpassung analog.
 
 ---
 

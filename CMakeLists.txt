@@ -61,92 +61,59 @@ if(MSVC AND "$ENV{LIB}" STREQUAL "")
     endif()
 endif()
 
+# ---------------------------------------------------------------------------
+# FreeType + HarfBuzz — built from source at PINNED versions via FetchContent so
+# EVERY platform (native macOS/Windows + WASM) uses the SAME versions and renders
+# text identically. Previously native used Homebrew and WASM the Emscripten ports
+# → different versions (notably HarfBuzz 12 vs 3) caused divergent shaping and
+# outlines for the same document (story_16 Step 1b).
+# ---------------------------------------------------------------------------
+include(FetchContent)
+
+# Vendored deps are built static and self-contained.
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# FreeType: disable optional codecs and its optional HarfBuzz auto-hint dependency
+# (the latter avoids a FreeType<->HarfBuzz configure cycle). TrueType outlines,
+# which is all OpenVED needs, are unaffected.
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG      ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_ZLIB     ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2    ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI   ON CACHE BOOL "" FORCE)
+FetchContent_Declare(freetype
+    GIT_REPOSITORY https://github.com/freetype/freetype.git
+    GIT_TAG        VER-2-14-1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(freetype)
+
+# HarfBuzz WITH FreeType support (the app uses hb_ft_font_create). HarfBuzz's
+# CMake calls find_package(Freetype); point those variables at the FetchContent
+# FreeType so it uses that instead of requiring a system install.
+set(FREETYPE_FOUND        TRUE)
+set(FREETYPE_INCLUDE_DIRS "${freetype_SOURCE_DIR}/include")
+set(FREETYPE_LIBRARIES    freetype)
+set(FREETYPE_LIBRARY      freetype)
+set(HB_HAVE_FREETYPE ON  CACHE BOOL "" FORCE)
+set(HB_BUILD_SUBSET  OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_TESTS   OFF CACHE BOOL "" FORCE)
+set(HB_BUILD_UTILS   OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(harfbuzz
+    GIT_REPOSITORY https://github.com/harfbuzz/harfbuzz.git
+    GIT_TAG        12.3.2
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(harfbuzz)
+
+set(VED_FREETYPE_LINK_TARGET freetype)
+set(VED_HARFBUZZ_LINK_TARGET harfbuzz)
 set(VED_FREETYPE_STATIC_DEPS)
-set(VED_FREETYPE_INCLUDE_DIRS)
-set(VED_FREETYPE_LIBRARY_DIRS)
 set(VED_HARFBUZZ_STATIC_DEPS)
+set(VED_FREETYPE_INCLUDE_DIRS)
 set(VED_HARFBUZZ_INCLUDE_DIRS)
+set(VED_FREETYPE_LIBRARY_DIRS)
 set(VED_HARFBUZZ_LIBRARY_DIRS)
-if(EMSCRIPTEN)
-    # Emscripten provides FreeType + HarfBuzz as ports: the -sUSE_FREETYPE /
-    # -sUSE_HARFBUZZ compile+link flags pull in headers and prebuilt libs, so no
-    # find_package or vendored build is needed. Link targets stay empty (the
-    # flags do the linking). Set for both here so the HarfBuzz block below is a
-    # no-op under Emscripten.
-    add_compile_options(-sUSE_FREETYPE=1 -sUSE_HARFBUZZ=1)
-    add_link_options(-sUSE_FREETYPE=1 -sUSE_HARFBUZZ=1)
-    set(VED_FREETYPE_LINK_TARGET "")
-    set(VED_HARFBUZZ_LINK_TARGET "")
-elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/CMakeLists.txt")
-    set(BUILD_SHARED_LIBS OFF)
-    add_subdirectory(third_party/freetype EXCLUDE_FROM_ALL)
-    set(VED_FREETYPE_LINK_TARGET freetype)
-elseif(NOT VED_FREETYPE_LINK_TARGET)
-    find_package(freetype CONFIG QUIET)
-    if(TARGET Freetype::Freetype)
-        set(VED_FREETYPE_LINK_TARGET Freetype::Freetype)
-    else()
-        if(PkgConfig_FOUND)
-            pkg_check_modules(FREETYPE2 freetype2)
-        endif()
-        find_path(FREETYPE_INCLUDE_DIR
-            NAMES ft2build.h
-            PATHS ${FREETYPE2_INCLUDE_DIRS}
-            PATH_SUFFIXES freetype2
-        )
-        find_library(FREETYPE_STATIC_LIBRARY
-            NAMES libfreetype.a freetype
-            PATHS ${FREETYPE2_LIBRARY_DIRS}
-        )
-        if(NOT FREETYPE_INCLUDE_DIR OR NOT FREETYPE_STATIC_LIBRARY)
-            message(FATAL_ERROR "Static FreeType development files not found. Install a static freetype2 package or vendor FreeType under third_party/freetype.")
-        endif()
-        if(PkgConfig_FOUND)
-            pkg_check_modules(FREETYPE2_STATIC freetype2)
-            set(VED_FREETYPE_STATIC_DEPS ${FREETYPE2_STATIC_STATIC_LIBRARIES})
-            list(REMOVE_ITEM VED_FREETYPE_STATIC_DEPS freetype)
-            set(VED_FREETYPE_LIBRARY_DIRS ${FREETYPE2_STATIC_STATIC_LIBRARY_DIRS})
-        endif()
-        set(VED_FREETYPE_LINK_TARGET ${FREETYPE_STATIC_LIBRARY})
-        set(VED_FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIR})
-    endif()
-endif()
-if(EMSCRIPTEN)
-    # HarfBuzz handled together with FreeType above (Emscripten port).
-elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/harfbuzz/CMakeLists.txt")
-    set(BUILD_SHARED_LIBS OFF)
-    add_subdirectory(third_party/harfbuzz EXCLUDE_FROM_ALL)
-    set(VED_HARFBUZZ_LINK_TARGET harfbuzz)
-elseif(NOT VED_HARFBUZZ_LINK_TARGET)
-    find_package(harfbuzz CONFIG QUIET)
-    if(TARGET harfbuzz::harfbuzz)
-        set(VED_HARFBUZZ_LINK_TARGET harfbuzz::harfbuzz)
-    else()
-        if(PkgConfig_FOUND)
-            pkg_check_modules(HARFBUZZ harfbuzz)
-        endif()
-        find_path(HARFBUZZ_INCLUDE_DIR
-            NAMES hb.h
-            PATHS ${HARFBUZZ_INCLUDE_DIRS}
-            PATH_SUFFIXES harfbuzz
-        )
-        find_library(HARFBUZZ_STATIC_LIBRARY
-            NAMES libharfbuzz.a harfbuzz
-            PATHS ${HARFBUZZ_LIBRARY_DIRS}
-        )
-        if(NOT HARFBUZZ_INCLUDE_DIR OR NOT HARFBUZZ_STATIC_LIBRARY)
-            message(FATAL_ERROR "Static HarfBuzz development files not found. Install a static harfbuzz package or vendor HarfBuzz under third_party/harfbuzz.")
-        endif()
-        if(PkgConfig_FOUND)
-            pkg_check_modules(HARFBUZZ_STATIC harfbuzz)
-            set(VED_HARFBUZZ_STATIC_DEPS ${HARFBUZZ_STATIC_STATIC_LIBRARIES})
-            list(REMOVE_ITEM VED_HARFBUZZ_STATIC_DEPS harfbuzz freetype)
-            set(VED_HARFBUZZ_LIBRARY_DIRS ${HARFBUZZ_STATIC_STATIC_LIBRARY_DIRS})
-        endif()
-        set(VED_HARFBUZZ_LINK_TARGET ${HARFBUZZ_STATIC_LIBRARY})
-        set(VED_HARFBUZZ_INCLUDE_DIRS ${HARFBUZZ_INCLUDE_DIR})
-    endif()
-endif()
 
 qt_standard_project_setup()
 
