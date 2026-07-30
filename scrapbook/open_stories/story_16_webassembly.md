@@ -437,9 +437,11 @@ Distributionspfad (Details dort in einem neuen "Step 5: WebAssembly").
 ### Tests
 - [x] `scripts/build-wasm.sh` erzeugt lokal ein vollstaendiges Bundle
       (`build/wasm/dist/`: index.html + OpenVED.js/.wasm + qtloader.js).
-- [ ] CI baut das WASM-Bundle reproduzierbar (`build-wasm`-Job) — CI-Lauf offen.
-- [ ] Veroeffentlichtes Bundle laedt ueber die GitHub-Pages-URL und ist bedienbar
-      (setzt voraus: Pages in den Repo-Settings auf "GitHub Actions" gestellt).
+- [x] CI baut das WASM-Bundle reproduzierbar (`build-wasm`-Job gruen, 5m49s).
+- [x] Veroeffentlichtes Bundle laedt ueber die GitHub-Pages-URL und ist bedienbar
+      — **live unter https://rasegi.github.io/OpenVED/** (HTTP 200, vom User
+      abgenommen). `deploy-pages` deployt nur vom Default-Branch `main`
+      (Environment-Schutzregel) → Deployment laeuft ueber `main`.
 
 ### Log
 
