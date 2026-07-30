@@ -50,18 +50,36 @@ geprueft, aber verworfen:
 
 ## Plugin-Erweiterbarkeit
 
-In einer parallelen Story entsteht ein **Plugin-System**. Jedes Plugin soll
-**eigene Hilfe** mitbringen koennen. Die Hilfe-Architektur beruecksichtigt das:
+Parallel entsteht eine Plugin-Architektur (`concept_plugin_architecture.md` +
+`story_plugin_architecture_persistent_semantics.md`). Die Hilfe wird so gebaut,
+dass Plugins **eigene Hilfe** beisteuern koennen — **ohne** dass Story 17 das
+Plugin-System voraussetzt (das ist dort noch Konzept). Story 17 liefert die
+**Core-Hilfe jetzt** + einen **erweiterbaren Hook**; die konkrete Plugin-Anbindung
+erfolgt, wenn die Plugin-Stories (C/F dort) umgesetzt sind.
+
+- **Taxonomie wie im Plugin-Konzept (§2):** Hilfe-Eintraege gibt es fuer alle vier
+  Provider-Typen, nicht nur Werkzeuge — **Object-Type** (was ein Objekt ist),
+  **Operation** (`voc_*`/`vom_*`), **Feature/Capability** (Exporter: Print/PDF/
+  DXF, Grid, Rulers), **Semantic/Model** (Aggregat). Die Hilfe-Kategorie eines
+  Eintrags = sein Provider-Typ.
+- **Ein Plugin liefert n Eintraege:** ein Semantic/Model-Plugin bringt eigene
+  Object-Types **und** Operations mit → je `helpId` eine Seite (**nicht** „eine
+  HTML pro Plugin").
 - **Hilfe-Registry** (in der App): Eintraege `{ helpId, Titel, Kategorie,
-  HTML-Quelle }`. Der Core registriert seine Operationen; **Plugins registrieren
-  ihre eigenen Eintraege** (helpId + HTML + TOC-Platzierung).
-- **Dynamisches TOC:** Das Inhaltsverzeichnis wird zur Laufzeit aus der Registry
-  erzeugt (nicht statisch), sodass Plugin-Hilfe automatisch erscheint.
-- **HTML-Quelle je Eintrag:** Core aus Qt-Ressource (`:/ved/help/…`), Plugin aus
-  seiner eigenen Ressource/seinem Verzeichnis — QTextBrowser laedt beides.
+  HTML-Quelle }`. Der Core registriert seine Eintraege; Plugins registrieren ihre.
+  Das **TOC wird daraus dynamisch** erzeugt (Plugin-Hilfe erscheint automatisch).
+- **`helpId` ist Qt-frei (Kern):** sie gehoert zur Operation/Capability in
+  `ved_core` (reiner String); nur die **Anzeige** ist Qt (App). Spaeter kann Hilfe
+  eine eigene **Capability/Service** werden (`IVecHelpProvider`, analog zum
+  `IVecFontProvider`-Muster aus dem Konzept §11) — Story 17 baut aber erstmal die
+  App-Registry.
+- **HTML-Quelle je Eintrag:** Core aus Qt-Ressource (`:/ved/help/…`); Plugin aus
+  seiner **Bundle-Ressource** (bei CPPMicroServices via `manifest.json` /
+  `usResourceCompiler3`). „Ein Codemodell, zwei Deployments" (Konzept §1.2): nativ
+  dynamisch geladen, **WASM statisch einkompiliert** → die Hilfe-Registrierung
+  deckt beide Wege ab (konsistent mit dem Konsistenz-Grundsatz).
 - **F1** funktioniert auch fuer Plugin-Operationen (aktive Operation → helpId →
   Registry → HTML), plattformkonsistent.
-- Bezug: `story_*_plugin_system` (parallel in Arbeit).
 
 ## Content-Schema pro Operation (VOC/VOM)
 
@@ -87,8 +105,17 @@ move (object/node/bspline-controlpoint) · rotate (activepoint) · scale (3point
 node (insert/delete/change-edge-round) · delete-object · insert-objects ·
 modify-curve-attribute · vectext.
 
-**Menue-Aktionen (nicht-Operation):** Datei (Neu/Oeffnen/Speichern/PDF-Export/
-Druck) · Bearbeiten · Ansicht (Zoom/Pan) · Fonts · Hilfe.
+**Model-Eigenschaften (Kern-Hilfe, KEINE Plugins):** Papier/Blattformat ·
+Einheit · Grid · Koordinatensystem/Workspace. Diese sind feste Model-Eigenschaften
+(`TDVecDocumentSettings`), keine Capabilities — siehe `concept_plugin_architecture.md`
+§7 (Papier bleibt Kern). Sie bekommen Kern-Hilfe-Seiten (Dokument-Einstellungen).
+
+**Ausgabe (spaeter Exporter-Plugins, `IVecExporter`):** PDF-Export · Print ·
+(spaeter) DXF-Export. Vorerst Kern-Hilfe; wenn die Exporter-Plugins existieren,
+wandern diese Seiten in die jeweiligen Bundle-Ressourcen (gleiche `helpId`).
+
+**Menue-Aktionen (uebrige, nicht-Operation):** Datei (Neu/Oeffnen/Speichern) ·
+Bearbeiten · Ansicht (Zoom/Pan) · Fonts · Hilfe.
 
 ---
 
@@ -225,6 +252,11 @@ zustaende, Mauszeiger) ersetzen — gleiche Dateinamen, kein HTML-Umbau noetig.
 7. Step 7 — echte Screenshots (spaeter).
 
 ## Bezug
+- `concept_plugin_architecture.md` — Plugin-Taxonomie (§2), Bundle-Ressourcen +
+  „ein Codemodell/zwei Deployments" (§1.2/3.1), Papier bleibt Kern (§7). Die
+  Hilfe-Registry ist der erweiterbare Hook fuer Plugin-Hilfe (dort Stories C/F).
+- `story_plugin_architecture_persistent_semantics.md` — semantische Model-Plugins
+  (bringen eigene Object-Types + Operations + je eigene Hilfe mit).
 - `plan_installer_build_github_distribution.md` — Pages-Deploy (Step 6 nutzt den
   bestehenden `deploy-pages`-Job).
 - `story_16_webassembly.md` — QTextBrowser-Hilfe muss WASM-tauglich sein.
