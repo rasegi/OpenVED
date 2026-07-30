@@ -435,11 +435,34 @@ Distributionspfad (Details dort in einem neuen "Step 5: WebAssembly").
 - README: Link zur Live-Web-Version ergaenzen.
 
 ### Tests
-- [ ] CI baut das WASM-Bundle reproduzierbar.
-- [ ] Veroeffentlichtes Bundle laedt ueber die GitHub-Pages-URL und ist bedienbar.
+- [x] `scripts/build-wasm.sh` erzeugt lokal ein vollstaendiges Bundle
+      (`build/wasm/dist/`: index.html + OpenVED.js/.wasm + qtloader.js).
+- [x] CI baut das WASM-Bundle reproduzierbar (`build-wasm`-Job gruen, 5m49s).
+- [x] Veroeffentlichtes Bundle laedt ueber die GitHub-Pages-URL und ist bedienbar
+      — **live unter https://rasegi.github.io/OpenVED/** (HTTP 200, vom User
+      abgenommen). `deploy-pages` deployt nur vom Default-Branch `main`
+      (Environment-Schutzregel) → Deployment laeuft ueber `main`.
 
 ### Log
-_(nach Umsetzung ausfuellen)_
+
+**umgesetzt am 2026-07-29/30** (Branch `story_16_webassembly_step_3`):
+- `scripts/build-wasm.sh`: parametrisiert ueber `EMSDK`/`QT_WASM`/`QT_HOST`
+  (macOS-Defaults fuer lokal), Configure mit der Qt-wasm-Toolchain +
+  `QT_HOST_PATH`, Build `ved_qt_app`, Bundle nach `build/wasm/dist/` (inkl.
+  `index.html` = Kopie der generierten `OpenVED.html` fuer den Pages-Root).
+  **Lokal getestet** (Bundle erzeugt, ~25 MB `.wasm`).
+- `.github/workflows/release.yml`: zwei neue Jobs —
+  - **`build-wasm`** (ubuntu-22.04): `setup-emsdk@v14` (4.0.7) +
+    `install-qt-action` (Qt 6.11.1 `wasm_singlethread` **und** Linux-Host-Qt
+    fuer moc/rcc) → `build-wasm.sh` → `upload-pages-artifact`.
+  - **`deploy-pages`**: `actions/deploy-pages@v4` (permissions `pages: write`,
+    `id-token: write`, environment `github-pages`) → live-URL.
+  Laeuft bei Tag-Push **und** `workflow_dispatch` (Web-Version unabhaengig von
+  Desktop-Releases aktualisierbar).
+- **Voraussetzung (einmalig, durch User):** Repo → Settings → Pages → Source
+  "GitHub Actions". Ohne das schlaegt `deploy-pages` fehl.
+- Offen: erster CI-Lauf verifizieren; Live-URL (`https://rasegi.github.io/OpenVED/`)
+  testen; README-Link ergaenzen.
 
 ---
 

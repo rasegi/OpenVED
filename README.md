@@ -38,6 +38,25 @@ The original codebase has been refactored to remove historical ballast, obsolete
 
 ---
 
+## Download & Web Demo
+
+**Try it in your browser — no installation:**
+[**rasegi.github.io/OpenVED**](https://rasegi.github.io/OpenVED/)
+
+Desktop installers are attached to every release:
+
+[![Release](https://img.shields.io/github/v/release/rasegi/OpenVED?include_prereleases)](https://github.com/rasegi/OpenVED/releases/latest)
+
+| Platform | Package |
+|---|---|
+| macOS (Apple Silicon) | `.dmg` |
+| Windows x64 | `.msi` |
+| Linux (any distro) | `.AppImage` |
+
+Grab them from the [latest release](https://github.com/rasegi/OpenVED/releases/latest).
+
+---
+
 ## Project Goals
 
 OpenVED is intended as:
