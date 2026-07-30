@@ -10,8 +10,9 @@ zusammen:
 
 - **`story_plugin_architecture_persistent_semantics.md`** — semantische Dokument-
   Plugins (Organigramm/UML), persistente Metadaten, Behavior-Hooks, Qt-Huelle.
-- **`story_16`-Nachfolge / "Story 18"-Idee** — Kern-Features (Papierformat, Print,
-  PDF-Export, spaeter Operationen) als **optionale, entkoppelte Module/Plugins**.
+- **`story_16`-Nachfolge / "Story 18"-Idee** — Ausgabe-Funktionen (Print, PDF-,
+  DXF-Export, spaeter Operationen) als **entkoppelte Module/Plugins**. (Papier
+  bleibt dagegen eine **feste Model-Eigenschaft**, kein Plugin — siehe Abschnitt 7.)
 
 Es trifft die **Technologie-Entscheidung** (CPPMicroServices als OSGi-artiger
 Service-Layer, mit optionaler Qt-Plugin-Huelle) und umreisst die **ersten
@@ -29,9 +30,10 @@ Editoren** werden. Leitprinzipien:
    werden, unter **WebAssembly** werden dieselben Plugins **statisch** einkompiliert
    und nur zur Laufzeit ueber die Registry aktiviert (WASM kennt kein `dlopen`/
    `QPluginLoader` von `.dll`/`.so`).
-3. **Optionalitaet:** Features wie Papier ergeben nicht in jedem Kontext Sinn
-   (3D-Fernziel: Papier ist ein reines 2D-/Print-Konzept). Sie muessen abschaltbar
-   und ersetzbar sein.
+3. **Optionalitaet:** Erweiterungen (Diagramm-Semantik, Meshing, Exporter) ergeben
+   nicht in jedem Kontext Sinn und muessen als Plugins zu-/abschaltbar sein. Das
+   betrifft **Funktionen**, **nicht** Model-Kern-Eigenschaften wie Einheit oder
+   Papier — die bleiben fest.
 4. **Deklarative Abhaengigkeiten** zwischen Plugins (Capability/Requirement),
    azyklisch aufgeloest — nicht harte C++-Klassenkopplung.
 5. **Persistenz-Vertraeglichkeit:** Unbekannte Plugin-Daten muessen ladbar bleiben
@@ -47,7 +49,7 @@ diese Vielfalt begruendet die Investition in eine echte Plugin-Architektur:
 |---|---|---|---|
 | **A — Diagramm-Editoren** | Organigramm, UML u.ae. | **Semantic/Model-Plugins**: eigene Object-Types (Box/Connector/Klasse), Operationen, Behaviors, Metadaten | Kern-Object-Types; Behavior-Hooks; Metadaten-Persistenz |
 | **B — Bild → Mesh** | Foto (z.B. Gesicht) → trianguliertes Model, 2D und/oder 3D, optional OpenCascade | **Feature-Plugin** (Bild-Import + Meshing-Service) + erzeugt Object-Types (Triangulation/Mesh) | 3D-Object-Types (Richtung C); **OpenCascade** als optionale externe Capability |
-| **C — 3D-Vektor-Editor** | Editor fuer 3D-Vektorobjekte | **tiefste Erweiterung**: 3D-Object-Types + 3D-Rendering + 3D-Operationen | macht Papier (2D-/Print-Capability) obsolet → bestaetigt Optionalitaet |
+| **C — 3D-Vektor-Editor** | Editor fuer 3D-Vektorobjekte | **tiefste Erweiterung**: 3D-Object-Types + 3D-Rendering + 3D-Operationen | ein 3D-WorkingSpace kennt kein Blattformat; Print/Export verhalten sich anders als in 2D |
 | **D — Editor-Bausteine** | Layer, dekorative Attribute (Linienstaerke/-art/-farbe), Listen-/Eigenschaften-Editoren, **DXF-Export** | teils **Feature-Capabilities** (DXF = Exporter wie PDF), teils **UI-Capabilities** (Property/List-Editoren), teils Core-Erweiterung (Layer/Attribute) | Exporter-Registry; UI-Registry; Core-Metadaten |
 
 **Beobachtungen fuer die Architektur:**
@@ -72,7 +74,7 @@ zusammengefuehrte Architektur braucht eine **Schichtung**:
 |---|---|---|
 | **Object-Type-Provider** | Was ein Objekt *ist*: Geometrie, Rendering, Serialisierung | Kern: Linie/Kreis/Text; Plugin: Organigramm-Box |
 | **Operation-Provider** | *Werkzeug*, das Objekte erzeugt/bearbeitet (`voc_*`/`vom_*`) | Kern: Select/Move; Plugin: "Connector zeichnen" |
-| **Feature/Capability-Provider** | Querschnitts-Dienst | **Papier**, **Print**, **PDF-Export**, Grid, Rulers |
+| **Feature/Capability-Provider** | Querschnitts-Dienst / Ausgabe | **Print**, **PDF-Export**, **DXF-Export**, Grid, Rulers |
 | **Semantic/Model-Plugin** | *Aggregat*, das eigene Object-Types + Operations + Behaviors + Metadaten buendelt | Organigramm, UML |
 
 **Wichtig:** Ein Semantic/Model-Plugin ist die unterste Zeile — es *bringt seine
@@ -106,7 +108,7 @@ nicht.
 Analog zur bestehenden Plugin-Story, jetzt praezisiert:
 
 - **Core-Bundle (immer):** Qt-frei, registriert Capabilities (Object-Types,
-  Operations, Exporter, Papier) ueber CPPMicroServices. Headless nutzbar (CLI,
+  Operations, Exporter) ueber CPPMicroServices. Headless nutzbar (CLI,
   Tests, Server).
 - **Qt-Plugin-Huelle (optional):** liefert UI (Actions, Toolbars, DockWidgets,
   Dialoge) ueber `QPluginLoader` + ein Qt-nahes Interface (`IVecQtPlugin` im Modul
@@ -141,7 +143,7 @@ ved_core                      (Qt-frei)
   TDVecModel / TDVecObject
   TDVecMetadataBag            (persistente Plugin-Metadaten)
   Object-IDs                  (stabile Identitaet)
-  Core-Capability-Interfaces  (Object-Type, Operation, Exporter, Paper ...)
+  Core-Capability-Interfaces  (Object-Type, Operation, Exporter ...)
 
 ved_plugin_host               (Qt-frei; CPPMicroServices-Wrapper ODER Eigenbau)
   Service-Registry / BundleContext
@@ -189,33 +191,40 @@ Uebernommen aus `story_plugin_architecture_persistent_semantics.md` (dort im Det
 Dieses Papier aendert daran nichts — es ordnet es als **Persistenz-Fundament** unter
 die gemeinsame Registry ein.
 
-## 7. Fallstudie: Papier / Print / PDF (erster Feature-Schnitt)
+## 7. Fallstudie: Print / PDF / DXF-Export (Exporter-Plugins)
+
+**Papier ist KEIN Plugin.** Es ist eine **feste Eigenschaft des Model/WorkingSpace**
+(das Feld `TDVecPageSettings` in `TDVecDocumentSettings`, `vec_document_settings.h`)
+— wie Einheit und Grid, ohne eigene Klasse/Datei. Es bleibt fester Bestandteil und
+wird **nicht** entkoppelt oder optional gemacht.
+
+Zu Plugins werden nur die **Ausgabe-Funktionen**, die das Papier *konsumieren*:
+**Print**, **PDF-Export** und (Richtung D) **DXF-Export**.
 
 **Heutige Kopplung (Ist-Analyse):**
-- `TDVecPageSettings` ist fester Teil von `TDVecDocumentSettings` → im Model-Member,
-  im Dateiformat (`ved_model_io.cpp`) und im `TDVecExportCoordinateMapper`.
-- Print (`MainWindow.cpp:1018ff`) und PDF-Export (`:952ff`) nutzen `ds.pageSettings`
-  **direkt** als (a) Ausgabegroesse (`QPageSize`) und (b) Rendering-Ausschnitt
-  (`WorkSpace/WorldSpace/ViewRange` = Papierrechteck). Papier ist der **Ausgabe-Rahmen**.
+- Print (`MainWindow.cpp:1018ff`) und PDF-Export (`:952ff`) sind **fest im
+  App-Layer verdrahtet** und lesen `ds.pageSettings` direkt als (a) Ausgabegroesse
+  (`QPageSize`) und (b) Rendering-Ausschnitt (Papierrechteck) — plus den
+  `TDVecExportCoordinateMapper` (Core) fuer Real→mm→Points.
 
-**Zielbild:** Papier, Print und PDF-Export je als eigenes Bundle/Capability.
-Print/PDF **konsumieren** die (optionale) Papier-Capability:
-- **Mit** Papier-Capability: drucken/exportieren exakt dieses Papier (heutiges
-  Verhalten).
-- **Ohne** Papier-Capability: definiertes Fallback noetig — **offene Design-Optionen**
-  (in einer eigenen Story zu entscheiden): (a) Dialog "erst fragen" (Drucker-Default/
-  A4/Objekt-Bounding-Box), (b) automatisch Objekt-Bounding-Box, (c) stiller
-  Standard (A4/Drucker-Default). Metrik/Einheiten bleiben davon unberuehrt (Kern).
+**Zielbild:** Print/PDF/DXF je als eigenes Exporter-Bundle hinter einer gemeinsamen
+`IVecExporter`-Capability. `MainWindow` ruft nicht mehr direkt `QPdfWriter`/`QPrinter`,
+sondern loest den Exporter ueber die Registry auf. Die Exporter **lesen** das (feste)
+Papier + die Objekte aus dem Model — Papiergroesse/-format bleiben die Quelle des
+Ausgabe-Rahmens, nur der *Weg dorthin* wird ein Plugin.
 
-Dieser Schnitt ist der **beste erste Proof-of-Concept**, weil der Export bereits
-relativ isoliert ist (`vec_export_coordinate_mapper`).
+Dieser Schnitt ist der **beste erste Feature-Plugin-PoC**, weil der Export bereits
+relativ isoliert ist (`vec_export_coordinate_mapper`) und **keine** Model-Kern-Aenderung
+braucht.
 
 ## 8. 3D-Ausblick
 
-Papier ist eine 2D-/Print-Capability — in 3D sinnlos. "Print" waere dort eine andere
-Capability (View-Snapshot/Render). Die Modularisierung ist also **nicht** nur
-Aufraeumen, sondern Voraussetzung, damit 2D-Print-Annahmen den 3D-Weg nicht
-verbauen.
+Papier bleibt eine **feste** Eigenschaft des heutigen **2D**-WorkingSpace. Ein
+spaeterer **3D**-WorkingSpace kennt kein Blattformat — dort waere "Print"/Ausgabe
+eine andere Capability (View-Snapshot/Render). Genau deshalb sollen die
+**Ausgabe-Funktionen** (Print/PDF/Export) Plugins sein: sie duerfen je nach
+Dimensionalitaet unterschiedlich ausfallen, ohne den Model-Kern anzufassen. Der
+Model-Kern (WorkingSpace + Einheit + im 2D-Fall Papier) bleibt fest.
 
 ## 9. Grober Fahrplan — erste Refaktorisierungs-Stories
 
@@ -233,8 +242,9 @@ bestehenden Codebasis:
    Qt-Huelle) hinter eine `IVecExporter`-Capability ziehen; `MainWindow` konsumiert
    nur noch die Registry. **DXF-Export** (Richtung D) wird spaeter der zweite
    Provider derselben Capability und validiert die Abstraktion.
-5. **Story E — Papier als optionale Capability.** `pageSettings` entkoppeln; Print/PDF
-   gegen die Papier-Capability; "ohne Papier"-Fallback entscheiden/umsetzen.
+5. **Story E — Print & DXF als weitere Exporter-Plugins.** Print und DXF-Export ueber
+   dieselbe `IVecExporter`-Capability wie PDF (Story D); validiert Multi-Provider. Alle
+   lesen das **feste** Papier aus dem Model — Papier wird nicht entkoppelt.
 6. **Story F — Qt-Plugin-Huelle.** `ved_qt_plugin_api` + `PluginManager`; erstes
    UI-Bundle ueber `QPluginLoader` (nativ) bzw. statisch registriert (WASM).
 7. **Story G (PoC) — domaenenspezifisches Model-Plugin.** Mini-Decorate/Organigramm:
@@ -254,7 +264,6 @@ Model/EditCad/OperationManager — pauschale Extraktion waere teuer und riskant.
 - **Zu frueh = Portierung ausbremsen** (die bestehende Story warnt zu Recht). Deshalb
   Fundamente (A/B) zuerst, grosser Umbau spaeter.
 - **Operationen-Extraktion** ist die teuerste offene Frage (interaktive Automaten).
-- **Ohne-Papier-Verhalten** (Abschnitt 7) ist bewusst offen — eigene Story.
 - **Schema-Versionierung/Migration** der Plugin-Metadaten.
 
 ## 11. Bezug zu bestehenden Stories
