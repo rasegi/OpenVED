@@ -1,0 +1,7 @@
+# OpenVED C++ code style.
+# LLVM standard style, widened to a 120-column limit.
+# Layout/whitespace only — naming is not enforced here (see clang-tidy step in the story).
+Language:        Cpp
+BasedOnStyle:    LLVM
+Standard:        Latest
+ColumnLimit:     120
