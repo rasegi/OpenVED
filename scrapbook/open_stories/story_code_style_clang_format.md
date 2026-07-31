@@ -202,13 +202,16 @@ Layout/Guards (grosse, rein kosmetische Diffs). Je Aspekt zuerst eine **Ziel-
 Konvention entscheiden** (siehe „Offene Entscheidungen").
 
 ### Aspekte (nach Diff-Groesse)
-- **Member-Naming (groesster Diff):** EINE Konvention waehlen — Hungarian `m*`
-  (heute dominant, ~3789×) **oder** trailing `_` (~244×, guideline-naeher). Umstellung
-  betrifft fast jede Klasse; die 4 gemischten Dateien zuerst.
+- **Member-Naming (groesster Diff) — entschieden: trailing `_`.** Die ~3789×
+  Hungarian `m*` (`mpVecModel`, `mnResolution`, `mb…`, `me…`) auf `member_`
+  vereinheitlichen; die 4 gemischten Dateien (`vec_font.h`, `vom_insert_objects.h`,
+  `vop_manager.h`, `vec_text.h`) zuerst. Betrifft fast jede Klasse.
 - **Hungarian Pointer-`p*`** (>1300×, NL.5) abbauen.
-- **Typ-Praefixe angleichen:** `TD*`/`VED*`/praefixlos an ein Schema fuehren
-  (z.B. Core → `TDVec*`, Interfaces `I*`) — beruehrt viele Dateien + evtl.
-  Datei-Umbenennungen (Datei↔Klasse-Mapping halten).
+- **Typ-Praefixe — entschieden: Familien bleiben, nur praefixlose angleichen.**
+  `TDVec*`/`TDVO*`/`TDMat*`/`VED*`/`TD*` und `I*` (Interfaces) bleiben; nur die
+  **praefixlosen** Core-nahen Typen (`FrameExtents`, `OutlineContext`, `FontEntry`,
+  `TextRun`, `VecShapingCache`, `FreeTypeFace`, …) bekommen ein passendes Praefix
+  (Datei↔Klasse-Mapping halten).
 - **camelCase-Core-Funktionen** (`vec_object_geometry.h`, `vec_math_base.h`) →
   PascalCase.
 - **Kleinfaelle:** `TDVocLineExtVar`→`TDVOCLineExtVar`; nicht-const globale
@@ -229,20 +232,21 @@ Konvention entscheiden** (siehe „Offene Entscheidungen").
 ### Log
 _(nach Umsetzung ausfuellen)_
 
-## Offene Entscheidungen
+## Entscheidungen (alle getroffen 2026-07-31)
 
-1. ~~**Basisstil**~~ — **entschieden:** reines LLVM (2-Space, PointerAlignment Right,
-   Attach-Braces) + ColumnLimit 120 (siehe Abschnitt "Zentrale Entscheidung").
-2. **Header-Guards:** `#pragma once` (Empfehlung) vs. nicht-reservierte `#ifndef`.
-3. **Umfang jetzt:** Steps 1-4 (Layout + Guards + Checks) jetzt; Step 5 (Naming via
-   clang-tidy) spaeter?
-4. **Member-Konvention (Step 5):** Hungarian `m*` beibehalten (heute dominant,
-   kleinster Diff) **oder** auf trailing `_` vereinheitlichen (guideline-naeher,
-   grosser Diff)?
-5. **Typ-Praefix-Ziel (Step 5):** alles Core auf `TDVec*` vereinheitlichen (inkl.
-   `TD*`/`VED*` umbenennen, mit Datei-Umbenennungen) **oder** die gewachsenen
-   Sub-Schemata (`TDVO*`/`TDMat*`/`VED*`) als bewusste Familien akzeptieren und nur
-   die praefixlosen Typen anfassen?
+1. **Basisstil** — reines LLVM (2-Space, PointerAlignment Right, Attach-Braces) +
+   `ColumnLimit: 120` (siehe „Zentrale Entscheidung").
+2. **Header-Guards** — **`#pragma once`** ueberall (behebt die reservierten
+   `__`-Namen **und** die 50/50-Inkonsistenz in einem Schritt).
+3. **Umfang jetzt** — nur **Steps 1–4** (clang-format + Guards + CI-Check + CLion);
+   **Step 5 (Naming) spaeter**, als eigener, getrennter Durchgang.
+4. **Member-Konvention (Step 5)** — auf **trailing `_`** vereinheitlichen
+   (guideline-naeher). Grosser Diff (fast jede Klasse) → bewusst spaeter/getrennt.
+5. **Typ-Praefix-Ziel (Step 5)** — die gewachsenen Familien
+   (`TDVec*`/`TDVO*`/`TDMat*`/`VED*`, `I*` fuer Interfaces) **akzeptieren**; nur die
+   **praefixlosen** Typen (`FrameExtents`, `OutlineContext`, `FontEntry`, `TextRun`,
+   `VecShapingCache`, `FreeTypeFace`, …) an ein passendes Schema angleichen. `TD*`
+   (gengine/fontengine) bleibt ebenfalls (keine Zwangs-Umbenennung nach `TDVec`).
 
 ## Akzeptanzkriterien
 
