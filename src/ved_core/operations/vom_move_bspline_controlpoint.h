@@ -10,24 +10,25 @@
 
 class TDVOMMoveBSPLineControlPoint : public TDVOModify {
 public:
-    TDVOMMoveBSPLineControlPoint(TDVecModel* pVecModel, TDVecEditCad* pVecEditCad, TDViewOperationManager* pParentOperationManager);
-    TDVOMMoveBSPLineControlPoint(const TDVOMMoveBSPLineControlPoint&);
-    ~TDVOMMoveBSPLineControlPoint() override = default;
-    TDVOMMoveBSPLineControlPoint& operator=(const TDVOMMoveBSPLineControlPoint&);
-    TDVOMMoveBSPLineControlPoint* Clone() const override;
+  TDVOMMoveBSPLineControlPoint(TDVecModel *pVecModel, TDVecEditCad *pVecEditCad,
+                               TDViewOperationManager *pParentOperationManager);
+  TDVOMMoveBSPLineControlPoint(const TDVOMMoveBSPLineControlPoint &);
+  ~TDVOMMoveBSPLineControlPoint() override = default;
+  TDVOMMoveBSPLineControlPoint &operator=(const TDVOMMoveBSPLineControlPoint &);
+  TDVOMMoveBSPLineControlPoint *Clone() const override;
 
-    void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
-    void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
 
 private:
-    TDVOMMoveBSPLineControlPoint();
+  TDVOMMoveBSPLineControlPoint();
 
-    std::unique_ptr<TDVecObject> mpTmpObject;
-    bool mbDragOK;
-    long miControle;
+  std::unique_ptr<TDVecObject> mpTmpObject;
+  bool mbDragOK;
+  long miControle;
 };
 
 #endif

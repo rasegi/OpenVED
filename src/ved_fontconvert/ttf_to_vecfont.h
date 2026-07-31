@@ -20,8 +20,8 @@ namespace ved::fontconvert {
 
 // Which characters a whole-font conversion emits.
 enum class CharacterCoverage {
-    Latin1,    // U+0020..U+00FF only (legacy behaviour; used by the Qt provider)
-    FullCmap,  // every BMP code point the font's cmap covers (U+0020..U+FFFF)
+  Latin1,   // U+0020..U+00FF only (legacy behaviour; used by the Qt provider)
+  FullCmap, // every BMP code point the font's cmap covers (U+0020..U+FFFF)
 };
 
 // Scale factor from FreeType font units to VED units for a given face.
@@ -40,18 +40,15 @@ std::unique_ptr<TDVecGlyph> ConvertGlyphOutline(FT_Face face, FT_UInt glyphIndex
 // fontName:    VED font name stored in the resulting font (e.g. "TT:Arial").
 // coverage:    Latin1 (default, backwards compatible) or FullCmap for the full
 //              BMP range the font covers (used by the .vfn bundle converter).
-std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string& encodedPath,
-                                                        long faceIndex,
-                                                        const std::string& fontName,
+std::unique_ptr<TDVecFont> ConvertTrueTypeFileToVecFont(const std::string &encodedPath, long faceIndex,
+                                                        const std::string &fontName,
                                                         CharacterCoverage coverage = CharacterCoverage::Latin1);
 
 // Same as ConvertTrueTypeFileToVecFont but from an in-memory TTF/OTF buffer
 // (e.g. a Qt resource) via FT_New_Memory_Face. The buffer only needs to stay
 // valid for the duration of the call.
-std::unique_ptr<TDVecFont> ConvertTrueTypeMemoryToVecFont(const void* data,
-                                                          long size,
-                                                          long faceIndex,
-                                                          const std::string& fontName,
+std::unique_ptr<TDVecFont> ConvertTrueTypeMemoryToVecFont(const void *data, long size, long faceIndex,
+                                                          const std::string &fontName,
                                                           CharacterCoverage coverage = CharacterCoverage::Latin1);
 
 } // namespace ved::fontconvert

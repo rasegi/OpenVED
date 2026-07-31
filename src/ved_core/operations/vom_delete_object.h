@@ -9,28 +9,28 @@
 
 class TDVOMDeleteObject : public TDVOModify {
 public:
-    TDVOMDeleteObject(TDVecModel* pVecModel, TDVecEditCad* pVecEditCad, TDViewOperationManager* pParentOperationManager);
-    TDVOMDeleteObject(const TDVOMDeleteObject&);
-    ~TDVOMDeleteObject() override;
-    TDVOMDeleteObject& operator=(const TDVOMDeleteObject&);
-    TDVOMDeleteObject* Clone() const override;
+  TDVOMDeleteObject(TDVecModel *pVecModel, TDVecEditCad *pVecEditCad, TDViewOperationManager *pParentOperationManager);
+  TDVOMDeleteObject(const TDVOMDeleteObject &);
+  ~TDVOMDeleteObject() override;
+  TDVOMDeleteObject &operator=(const TDVOMDeleteObject &);
+  TDVOMDeleteObject *Clone() const override;
 
-    void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
-    void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
 
 private:
-    TDVOMDeleteObject();
+  TDVOMDeleteObject();
 
-    TDVecModelHitResult FindHit(TDMatPoint point) const;
-    double MouseToleranceReal() const;
-    void DeleteSelectedAndFinish();
-    void DeleteObjectAndFinish(int objectIndex);
+  TDVecModelHitResult FindHit(TDMatPoint point) const;
+  double MouseToleranceReal() const;
+  void DeleteSelectedAndFinish();
+  void DeleteObjectAndFinish(int objectIndex);
 
-    unsigned int mClick;
-    long miIndexObject;
+  unsigned int mClick;
+  long miIndexObject;
 };
 
 #endif

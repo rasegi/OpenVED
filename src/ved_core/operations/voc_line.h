@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// HEADER: View-Operation-Create-Line             
+// HEADER: View-Operation-Create-Line
 //
 // DESCR:   definiert die klasse für Kapselung die View-Operationen-Create-Line
 //          diese Klasse ist von TDVOCreate abgeleitet
@@ -14,57 +14,56 @@
 #ifndef __VOC_LINE_H
 #define __VOC_LINE_H
 //---------------------------------------------------------------------------
-#include "vop_base.h"
 #include "vec_edit_cad.h"
+#include "vop_base.h"
 //---------------------------------------------------------------------------
 class TDVecLine;
 
-class TDVocLineExtVar : public TDVOPExternalVariables
-{
+class TDVocLineExtVar : public TDVOPExternalVariables {
 public:
-    TDVocLineExtVar(TDViewOperation* pParentOperation);     // ! Constructor with Parameter
-    TDVocLineExtVar(const TDVocLineExtVar&);                // ! Copy Contructor
-    ~TDVocLineExtVar();                                     // ! default Destructor
-    TDVocLineExtVar& operator = (const TDVocLineExtVar&);   // ! assignment operator
-    TDVocLineExtVar* Clone(void) const;                     // ! Clone Methode
+  TDVocLineExtVar(TDViewOperation *pParentOperation);  // ! Constructor with Parameter
+  TDVocLineExtVar(const TDVocLineExtVar &);            // ! Copy Contructor
+  ~TDVocLineExtVar();                                  // ! default Destructor
+  TDVocLineExtVar &operator=(const TDVocLineExtVar &); // ! assignment operator
+  TDVocLineExtVar *Clone(void) const;                  // ! Clone Methode
 
-    void    SetMatLine(TDMatLine MatLine);
-    TDMatLine   GetMatLine(void);
-    void    SetMatPoint(TDMatPoint MatPoint);
-    TDMatPoint  GetMatPoint(void);
+  void SetMatLine(TDMatLine MatLine);
+  TDMatLine GetMatLine(void);
+  void SetMatPoint(TDMatPoint MatPoint);
+  TDMatPoint GetMatPoint(void);
+
 private:
-    TDVocLineExtVar();                                      // ! default Constructor
+  TDVocLineExtVar(); // ! default Constructor
 
-    TDMatLine   mMatLine;
-    TDMatPoint  mMatPoint;
+  TDMatLine mMatLine;
+  TDMatPoint mMatPoint;
 };
 
 //---------------------------------------------------------------------------
-class   TDVOCLine : public TDVOCreate
-{
+class TDVOCLine : public TDVOCreate {
 public:
-    TDVOCLine(TDVecModel* pVecModel , TDVecEditCad* pVecEditCad , TDViewOperationManager* pParentOperationManager);
-    TDVOCLine(const TDVOCLine&);                                    // ! Copy Contructor
-    ~TDVOCLine();                                                   // ! default Destructor
-    TDVOCLine& operator = (const TDVOCLine&);                       // ! assignment operator
-    TDVOCLine* Clone(void) const;                                   // ! Clone Methode
+  TDVOCLine(TDVecModel *pVecModel, TDVecEditCad *pVecEditCad, TDViewOperationManager *pParentOperationManager);
+  TDVOCLine(const TDVOCLine &);            // ! Copy Contructor
+  ~TDVOCLine();                            // ! default Destructor
+  TDVOCLine &operator=(const TDVOCLine &); // ! assignment operator
+  TDVOCLine *Clone(void) const;            // ! Clone Methode
 
-    //-*-*-*-*-*-*-*
-    void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
-    void __fastcall OPMouseUp  (TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
-    void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
-    void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey , TDOPVirtKeyState StateKey);
-    void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey , TDOPVirtKeyState StateKey);
-    //-*-*-*-*-*-*-*
+  //-*-*-*-*-*-*-*
+  void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
+  void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
+  void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y);
+  void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey);
+  void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey);
+  //-*-*-*-*-*-*-*
 
 private:
-    TDVOCLine();                                                    // ! default Constructor
+  TDVOCLine(); // ! default Constructor
 
-    TDVocLineExtVar*    mpVocLineExtVar;
+  TDVocLineExtVar *mpVocLineExtVar;
 
-    TDVecLine*          mpObjLine;
-    TDMatLine           mMatLine;
-    bool                mbLineOK;
+  TDVecLine *mpObjLine;
+  TDMatLine mMatLine;
+  bool mbLineOK;
 };
 //---------------------------------------------------------------------------
 #endif

@@ -12,24 +12,25 @@ class TDVecEllipse;
 
 class TDVOCCircleDiagonal : public TDVOCreate {
 public:
-    TDVOCCircleDiagonal(TDVecModel* pVecModel, TDVecEditCad* pVecEditCad, TDViewOperationManager* pParentOperationManager);
-    TDVOCCircleDiagonal(const TDVOCCircleDiagonal&);
-    ~TDVOCCircleDiagonal() override = default;
-    TDVOCCircleDiagonal& operator=(const TDVOCCircleDiagonal&);
-    TDVOCCircleDiagonal* Clone() const override;
+  TDVOCCircleDiagonal(TDVecModel *pVecModel, TDVecEditCad *pVecEditCad,
+                      TDViewOperationManager *pParentOperationManager);
+  TDVOCCircleDiagonal(const TDVOCCircleDiagonal &);
+  ~TDVOCCircleDiagonal() override = default;
+  TDVOCCircleDiagonal &operator=(const TDVOCCircleDiagonal &);
+  TDVOCCircleDiagonal *Clone() const override;
 
-    void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
-    void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
 
 private:
-    TDVOCCircleDiagonal();
+  TDVOCCircleDiagonal();
 
-    std::unique_ptr<TDVecEllipse> mpObjEllipse;
-    TDMatEllipse mMatEllipse;
-    bool mbEllipseOK;
+  std::unique_ptr<TDVecEllipse> mpObjEllipse;
+  TDMatEllipse mMatEllipse;
+  bool mbEllipseOK;
 };
 
 #endif

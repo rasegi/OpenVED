@@ -13,23 +13,24 @@ class TDVecEllipse;
 
 class TDVOCEllipseOrthogonal : public TDVOCreate {
 public:
-    TDVOCEllipseOrthogonal(TDVecModel* pVecModel, TDVecEditCad* pVecEditCad, TDViewOperationManager* pParentOperationManager);
-    TDVOCEllipseOrthogonal* Clone() const override;
-    void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
-    void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
-    void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  TDVOCEllipseOrthogonal(TDVecModel *pVecModel, TDVecEditCad *pVecEditCad,
+                         TDViewOperationManager *pParentOperationManager);
+  TDVOCEllipseOrthogonal *Clone() const override;
+  void __fastcall OPMouseDown(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseUp(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPMouseMove(TDOPVirtMouseButton Button, TDOPVirtKeyState Shift, double X, double Y) override;
+  void __fastcall OPKeyDown(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
+  void __fastcall OPKeyUp(TDOPVirtKey eVirtualKey, TDOPVirtKeyState StateKey) override;
 
 private:
-    TDVOCEllipseOrthogonal();
-    bool IsEllipseValid() const;
-    void Reset();
-    void AppendEllipse();
+  TDVOCEllipseOrthogonal();
+  bool IsEllipseValid() const;
+  void Reset();
+  void AppendEllipse();
 
-    std::unique_ptr<TDVecEllipse> mpObjEllipse;
-    TDMatEllipse mMatEllipse;
-    bool mbEllipseOK;
+  std::unique_ptr<TDVecEllipse> mpObjEllipse;
+  TDMatEllipse mMatEllipse;
+  bool mbEllipseOK;
 };
 
 #endif

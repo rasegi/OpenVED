@@ -4,15 +4,15 @@
 
 class TDVecEdit {
 public:
-    TDVecEdit();
-    virtual ~TDVecEdit() = 0;
+  TDVecEdit();
+  virtual ~TDVecEdit() = 0;
 
-    bool SetVecModel(TDVecModel* pVecModel);
-    TDMatPoint GetTopLeftArea();
-    TDMatPoint GetBottomRightArea();
+  bool SetVecModel(TDVecModel *pVecModel);
+  TDMatPoint GetTopLeftArea();
+  TDMatPoint GetBottomRightArea();
 
-    virtual void ViewsRefresh() = 0;
+  virtual void ViewsRefresh() = 0;
 
 protected:
-    TDVecModel* mpVecModel;
+  TDVecModel *mpVecModel;
 };

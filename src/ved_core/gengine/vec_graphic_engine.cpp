@@ -14,7 +14,6 @@
 #define __VEC_GRAPHIC_ENGINE_CPP
 #include "vec_graphic_engine.h"
 
-
 //---------------------------------------------------------------------------
 // DESCR:
 //  Konstruktor. Erzeugt eine Graphic Engine.
@@ -22,16 +21,13 @@
 //  hDC     -   Device Context für Grafikausgabe
 //  hWnd    -   assoziiertes Fenster
 //---------------------------------------------------------------------------
-TDGraphicEngine::TDGraphicEngine()
-{}
+TDGraphicEngine::TDGraphicEngine() {}
 //---------------------------------------------------------------------------
 // DESCR:
 //  Virtual-Destruktor.
 //---------------------------------------------------------------------------
-TDGraphicEngine::~TDGraphicEngine()
-{}
+TDGraphicEngine::~TDGraphicEngine() {}
 
 //---------------------------------------------------------------------------
 // EOF
 //---------------------------------------------------------------------------
-
