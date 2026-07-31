@@ -6,17 +6,71 @@ Status: offen
 ## Kontext
 
 Der C++-Stil in OpenVED ist heute **nicht erzwungen**: kein `.clang-format`, kein
-`.clang-tidy`, kein `.editorconfig`, keine CI-Pruefung. Der Ist-Stil ist intern
-weitgehend konsistent (4-Space-Indent, Spaces, `TDVec`-Praefix, `PascalCase()`-
-Methoden, `trailing_underscore_`-Member), hat aber Abweichungen und einige
-Verstoesse gegen die **C++ Core Guidelines**:
+`.clang-tidy`, kein `.editorconfig`, keine CI-Pruefung. Das **Layout** ist intern
+weitgehend konsistent (4-Space-Indent, Spaces, `PascalCase()`-Methoden), das
+**Naming** dagegen **gespalten** entlang der Trennlinie Alt-Code vs. neuerer Code
+(vollstaendige Bestandsaufnahme unten unter „Naming-Ist-Analyse"). Verstoesse
+gegen die **C++ Core Guidelines** und Inkonsistenzen:
 
 - **Reservierte Namen:** 33 Header nutzen Guards wie `#ifndef __VOC_LINE_H`
   (fuehrendes `__` + Grossbuchstaben → laut `[lex.name]` der Implementierung
   reserviert; Core Guideline **SF.12/NL**).
-- **Inkonsistente Header-Guards:** 37× `#pragma once` vs. 36× `#ifndef`.
-- **Hungarian Notation:** Pointer-Parameter `pVecModel`, `pVecEditCad` (**NL.5**).
+- **Inkonsistente Header-Guards:** 37× `#pragma once` vs. 36× `#ifndef` (davon 33
+  reserviert).
+- **Member-Naming gespalten:** ~3789× Hungarian `m`-Praefix (`mpVecModel`,
+  `mnResolution`) vs. ~244× trailing `_` (`member_`) — dominant ist **Hungarian**,
+  nicht `_` (Korrektur einer frueheren Annahme).
+- **Hungarian Pointer-Praefix:** >1300× `p*` (`pGE`, `pVecModel`, `pVecEditCad`)
+  (**NL.5**).
+- **Uneinheitliche Typ-Praefixe:** `TDVec` / `TDVO*` / `TDMat*` / `TD*` / `VED*` /
+  praefixlos (Details unten).
+- **camelCase-Core-Funktionen:** ~18 freie Funktionen brechen die PascalCase-Regel.
 - **Zeilenlaenge** teils bis Spalte 134 (kein Limit).
+
+## Naming-Ist-Analyse (vollstaendige Bestandsaufnahme, 2026-07-31)
+
+Analyse ueber alle `src/**` + `tests/**` (Fremdtypen `Q*`/`FT_*`/`hb_*` heraus-
+gefiltert). Die Inkonsistenzen folgen fast durchgehend **Alt-Code** (Hungarian,
+`__`-Guards, `(void)`) vs. **neuerer Code** (trailing `_`, `#pragma once`, `nullptr`).
+
+### Member-Naming — groesster Bruch
+| Stil | Vorkommen | Bereich |
+|---|---|---|
+| Hungarian `m`-Praefix (`mp`=ptr, `mn`=num, `mb`=bool, `me`=enum) | ~3789 (37 Header) | Alt-Code: alle `operations/`, `vec_edit*`, `vec_font.h`, `vec_view_interface.h`, `vec_text.h` |
+| trailing `_` (`member_`) | ~244 (27 Header) | neuer Code: `serialization/`, `vecobjects/`, `main/vec_model.h`, `vec_units.h`, `gengine/`, App |
+
+Gemischt in **einer** Datei: `vec_font.h`, `vom_insert_objects.h`, `vop_manager.h`,
+`vec_text.h`. Dritte Variante: `m` ohne Typbuchstabe (`mMatLine`, `msText`).
+→ Dominant ist **Hungarian** (~94 %), nicht `_`.
+
+### Typ-Praefixe — vier Schemata + praefixlos
+| Praefix | Anzahl | Bereich |
+|---|---|---|
+| `TDVec*` | ~39 | vecobjects, main, fontengine |
+| `TDVO*` (VO = View Operation) | ~40 | `operations/` (konsistentes Sub-Schema) |
+| `TDMat*` | 6 | mathlib |
+| `TD*` (ohne Vec/VO/Mat) | 6 | `TDGraphicEngine`, `TDFontManager`, `TDGraphicEngineQt`, … |
+| `VED*` (all-caps) | 9 | `serialization/` (`VEDBinaryReader`, …) |
+| `I*` | 1 | `IVecFontProvider` (Interface, korrekt) |
+| praefixlos | ~10 | `FrameExtents`, `FreeTypeFace`, `OutlineContext`, `FontEntry`, `TextRun`, `VecShapingCache`, … |
+
+App-Layer bewusst im Qt-Stil (`MainWindow`, `DocumentSetupDialog`, `QVedWidget`).
+
+### Methoden
+Klassenmethoden **100 % PascalCase**. Ausnahme: ~18 **freie** camelCase-Funktionen
+in `vec_object_geometry.h` (`atanD2`, `distancePointToSegment`, `makeFrameFromBounds`,
+…) + `vec_math_base.h` (`computeCoefficients`). Qt-Overrides (`paintEvent`, …) erlaubt.
+
+### Dateinamen
+Core **100 % `snake_case`**; App `PascalCase` (Ausnahme: `main.cpp`); Tests
+`snake_case`. Datei↔Klasse-Mapping ueberwiegend sauber; einziger Casing-Bruch:
+`TDVocLineExtVar` vs. `TDVOCLine` in `voc_line.h`.
+
+### Weitere Hygiene
+- **konform:** kein `using namespace` in Headern; saubere Include-Reihenfolge; alle
+  Header guard-geschuetzt; 319:5 `nullptr`:`NULL`; 488 `static_cast` (kaum C-Casts).
+- **offen:** 1 nicht-const globale `gVecTextShaper` (`vec_text.cpp:21`, I.2); 5× `NULL`
+  (`vop_base.*`, `vec_view_interface.cpp`); 342× `(void)`-Parameterlisten (C-ism).
 
 ## Wichtige Klarstellung (Scope-Grenze)
 
@@ -141,17 +195,36 @@ _(nach Umsetzung ausfuellen)_
 ### Log
 _(nach Umsetzung ausfuellen)_
 
-## Step 5 (optional): clang-tidy fuer Naming/Guideline-Checks
+## Step 5 (optional, gross): Naming vereinheitlichen (clang-tidy + manuell)
 
-### Was
-- `.clang-tidy` mit `readability-identifier-naming` (kodifiziert `TDVec`-Praefix,
-  Member-`_`-Suffix etc.) und ausgewaehlten `cppcoreguidelines-*`/`bugprone-*`-Checks.
-- Hungarian `p`-Praefixe (NL.5) abbauen — **grosser, rein kosmetischer Diff**, daher
-  bewusst optional und getrennt.
+Basierend auf der **Naming-Ist-Analyse** oben. Bewusst optional und **getrennt** von
+Layout/Guards (grosse, rein kosmetische Diffs). Je Aspekt zuerst eine **Ziel-
+Konvention entscheiden** (siehe „Offene Entscheidungen").
+
+### Aspekte (nach Diff-Groesse)
+- **Member-Naming (groesster Diff):** EINE Konvention waehlen — Hungarian `m*`
+  (heute dominant, ~3789×) **oder** trailing `_` (~244×, guideline-naeher). Umstellung
+  betrifft fast jede Klasse; die 4 gemischten Dateien zuerst.
+- **Hungarian Pointer-`p*`** (>1300×, NL.5) abbauen.
+- **Typ-Praefixe angleichen:** `TD*`/`VED*`/praefixlos an ein Schema fuehren
+  (z.B. Core → `TDVec*`, Interfaces `I*`) — beruehrt viele Dateien + evtl.
+  Datei-Umbenennungen (Datei↔Klasse-Mapping halten).
+- **camelCase-Core-Funktionen** (`vec_object_geometry.h`, `vec_math_base.h`) →
+  PascalCase.
+- **Kleinfaelle:** `TDVocLineExtVar`→`TDVOCLineExtVar`; nicht-const globale
+  `gVecTextShaper` entkoppeln (I.2); 5× `NULL`→`nullptr`; `main.cpp`-Casing (falls
+  App-PascalCase erzwungen wird).
+
+### Werkzeuge
+- `.clang-tidy` mit `readability-identifier-naming` (kodifiziert das **gewaehlte**
+  Schema) + ausgewaehlte `cppcoreguidelines-*`/`bugprone-*`-Checks.
+- Grosse Umbenennungen per clang-tidy `--fix` / `clang-rename`, in **getrennten,
+  aspekt-weisen** Commits (`.git-blame-ignore-revs`).
 
 ### Tests
 - [ ] `clang-tidy` laeuft ueber die Compile-DB ohne die konfigurierten Checks zu
-      verletzen (nach Anpassung).
+      verletzen (nach Anpassung je Aspekt).
+- [ ] Nativer + WASM-Build gruen, alle Tests gruen (reine Umbenennung).
 
 ### Log
 _(nach Umsetzung ausfuellen)_
@@ -163,6 +236,13 @@ _(nach Umsetzung ausfuellen)_
 2. **Header-Guards:** `#pragma once` (Empfehlung) vs. nicht-reservierte `#ifndef`.
 3. **Umfang jetzt:** Steps 1-4 (Layout + Guards + Checks) jetzt; Step 5 (Naming via
    clang-tidy) spaeter?
+4. **Member-Konvention (Step 5):** Hungarian `m*` beibehalten (heute dominant,
+   kleinster Diff) **oder** auf trailing `_` vereinheitlichen (guideline-naeher,
+   grosser Diff)?
+5. **Typ-Praefix-Ziel (Step 5):** alles Core auf `TDVec*` vereinheitlichen (inkl.
+   `TD*`/`VED*` umbenennen, mit Datei-Umbenennungen) **oder** die gewachsenen
+   Sub-Schemata (`TDVO*`/`TDMat*`/`VED*`) als bewusste Familien akzeptieren und nur
+   die praefixlosen Typen anfassen?
 
 ## Akzeptanzkriterien
 
